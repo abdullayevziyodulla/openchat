@@ -1,6 +1,6 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { handleOpenChatRequest } from "../server/openchat";
+import { handleOpenChatRequest, reconcileInstagramComments, refreshDueInstagramTokens } from "../server/openchat";
 import type { OpenChatEnv, WorkerContext } from "../server/runtime";
 
 function secureResponse(response: Response, request: Request) {
@@ -29,6 +29,12 @@ const worker = {
       }, allowedWidths), request);
     }
     return secureResponse(await handler.fetch(request, env, ctx), request);
+  },
+  async scheduled(controller: { cron?: string }, env: OpenChatEnv, ctx: WorkerContext) {
+    const reconciliation = reconcileInstagramComments(env);
+    ctx.waitUntil(controller.cron === "0 3 * * *"
+      ? Promise.all([refreshDueInstagramTokens(env), reconciliation])
+      : reconciliation);
   },
 };
 

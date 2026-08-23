@@ -187,6 +187,59 @@ describe("OpenChatStore", () => {
     expect(await store.getLatestTelegramBusinessConnection()).toMatchObject({ id: "business-123", canReply: true, enabled: true });
   });
 
+  it("persists Instagram account context and exposes it to channel-neutral delivery", async () => {
+    const store = await createStore();
+    const account = await store.saveInstagramAccount({
+      instagramUserId: "ig-business-1",
+      appScopedUserId: "app-user-1",
+      username: "openchat_shop",
+      displayName: "OpenChat Shop",
+      profilePictureUrl: null,
+      encryptedAccessToken: "v1.encrypted-token",
+      tokenExpiresAt: Date.now() + 60_000,
+      scopes: ["instagram_business_basic", "instagram_business_manage_messages"],
+      webhookSubscribed: true,
+    });
+    const timestamp = Date.now();
+    const inbound = await store.recordInbound({
+      channel: "instagram",
+      eventId: "mid.1",
+      externalMessageId: "mid.1",
+      externalConversationId: "ig-business-1:customer-1",
+      externalContactId: "ig-business-1:customer-1",
+      displayName: "Instagram user",
+      text: "Hello",
+      timestamp,
+      payload: "{}",
+      instagramAccountId: account.id,
+      instagramRecipientIgsid: "customer-1",
+      instagramThreadId: "thread-1",
+      messagingWindowUntil: timestamp + 24 * 60 * 60_000,
+    });
+    if (!inbound.conversationId) throw new Error("Expected Instagram conversation");
+    expect(await store.listConversations()).toMatchObject([{ channel: "instagram", preview: "Hello" }]);
+    expect(await store.getInstagramConversationContext(inbound.conversationId)).toMatchObject({
+      instagramAccountId: account.id,
+      instagramUserId: "ig-business-1",
+      recipientIgsid: "customer-1",
+      threadId: "thread-1",
+    });
+    expect(await store.createOutbound(inbound.conversationId, "human", "Hi there")).toMatchObject({
+      channel: "instagram",
+      instagramAccountId: account.id,
+      instagramRecipientIgsid: "customer-1",
+      instagramLastInboundAt: timestamp,
+    });
+  });
+
+  it("consumes Instagram OAuth state exactly once", async () => {
+    const store = await createStore();
+    const state = await store.createOauthState("instagram");
+    expect(await store.consumeOauthState("instagram", state)).toBe(true);
+    expect(await store.consumeOauthState("instagram", state)).toBe(false);
+    expect(await store.consumeOauthState("instagram", `${state}tampered`)).toBe(false);
+  });
+
   it("persists encrypted Telegram credentials without exposing plaintext", async () => {
     const store = await createStore();
     await store.saveTelegramCredentials({

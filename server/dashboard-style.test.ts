@@ -27,7 +27,7 @@ describe("dashboard visual baseline", () => {
     expect(dashboardApp).toContain('openchat-sidebar-collapsed');
     expect(dashboardApp).toContain('aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}');
     expect(dashboardCss).toMatch(/\.dashboard-shell\.sidebar-collapsed \.sidebar\s*\{[^}]*width:\s*76px;/s);
-    expect(dashboardCss).toMatch(/\.sidebar nav\s*\{[^}]*grid-template-columns:\s*repeat\(4, 1fr\);/s);
+    expect(dashboardCss).toMatch(/\.sidebar nav\s*\{[^}]*grid-template-columns:\s*repeat\(5, minmax\(0, 1fr\)\);/s);
     expect(dashboardCss).not.toContain(".sidebar nav button:last-child { display: none; }");
   });
 
@@ -140,7 +140,7 @@ describe("dashboard visual baseline", () => {
   });
 
   it("offers Telegram attachments and native message replies from the inbox", () => {
-    expect(dashboardApp).toContain('aria-label="Attach photo or file"');
+    expect(dashboardApp).toContain('aria-label="Attach media or file"');
     expect(dashboardApp).toContain("Replying to");
     expect(dashboardApp).toContain("replyToMessageId");
     expect(dashboardApp).toContain("/attachment");

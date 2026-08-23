@@ -281,7 +281,7 @@ export function OpenChatLanding() {
         )}
 
         <div className="oc-hero-content">
-          <p className="oc-eyebrow"><span>OPEN-SOURCE v0.1</span> Telegram inbox with human-controlled AI</p>
+          <p className="oc-eyebrow"><span>OPEN-SOURCE v0.2</span> Instagram and Telegram, one human-controlled inbox</p>
           <h1>Turn social chats<br />into customers.</h1>
           <p className="oc-hero-lede">Self-host OpenChat, answer with your business knowledge, and take over from AI whenever judgment matters.</p>
           <div className="oc-hero-actions">
@@ -292,7 +292,7 @@ export function OpenChatLanding() {
         </div>
 
         <div className="oc-hero-product">
-          <div className="oc-float-note note-one"><Send size={20} /><span><small>VERSION 0.1</small><b>Telegram-first release</b></span></div>
+          <div className="oc-float-note note-one"><Send size={20} /><span><small>VERSION 0.2</small><b>Instagram + Telegram</b></span></div>
           <div className="oc-float-note note-two"><Zap size={19} /><span><small>AI RESPONSE</small><b>Ready in 12 seconds</b></span></div>
           <InboxPreview mode="inbox" />
         </div>
@@ -301,14 +301,14 @@ export function OpenChatLanding() {
       <main id="main">
         <section className="oc-platform-strip" aria-label="Supported platforms">
           <p>Built for businesses that sell through conversation</p>
-          <div><span><Image src="/icons/telegram.svg" alt="Telegram" width={24} height={24} /> Telegram · v0.1</span><i /> <span><Image src="/icons/instagram.svg" alt="Instagram" width={24} height={24} /> Instagram · planned</span><i /> <span><Github size={19} /> Open source</span></div>
+          <div><span><Image src="/icons/telegram.svg" alt="Telegram" width={24} height={24} /> Telegram</span><i /> <span><Image src="/icons/instagram.svg" alt="Instagram" width={24} height={24} /> Instagram · v0.2</span><i /> <span><Github size={19} /> Open source</span></div>
         </section>
 
         <section className="oc-problem oc-section">
           <div className="oc-section-intro"><p className="oc-kicker">THE BUYING MOMENT</p><h2>A customer should not wait while your team searches for an answer.</h2></div>
           <div className="oc-outcome-grid">
             <article><span><Zap size={23} /></span><h3>Answer while intent is hot</h3><p>Give customers a useful next step in seconds, even when your team is offline.</p></article>
-            <article><span><Layers3 size={23} /></span><h3>Keep every chat organized</h3><p>See Telegram conversations, context, delivery state, and AI ownership in one place.</p></article>
+            <article><span><Layers3 size={23} /></span><h3>Keep every chat organized</h3><p>See Instagram and Telegram conversations, context, delivery state, and AI ownership in one place.</p></article>
             <article><span><Users size={23} /></span><h3>Make handoffs feel human</h3><p>Bring in a teammate with the full thread, detected intent, and a suggested next action.</p></article>
           </div>
         </section>
@@ -324,14 +324,14 @@ export function OpenChatLanding() {
         <section className="oc-how oc-section" id="how">
           <div className="oc-how-copy"><p className="oc-kicker">LIVE IN MINUTES</p><h2>Connect.<br />Teach. Go live.</h2><p>No flow-builder maze. Start with the business knowledge and rules you already have.</p></div>
           <ol>
-            <li><span>01</span><div><h3>Connect Telegram</h3><p>Add a bot or Telegram Business profile, then receive every conversation in one inbox.</p></div><MessageCircle size={26} /></li>
+            <li><span>01</span><div><h3>Connect your channels</h3><p>Add Instagram professional accounts, a Telegram bot, or Telegram Business, then receive conversations in one inbox.</p></div><MessageCircle size={26} /></li>
             <li><span>02</span><div><h3>Add your knowledge</h3><p>Import products, services, prices, policies, FAQs, and examples of your tone.</p></div><BrainCircuit size={26} /></li>
             <li><span>03</span><div><h3>Set the handoff rules</h3><p>Choose what AI can handle and the moments that always need a person.</p></div><ShieldCheck size={26} /></li>
           </ol>
         </section>
 
         <section className="oc-channels oc-section">
-          <div className="oc-channel-heading"><div><p className="oc-kicker">CHANNEL ROADMAP</p><h2>Telegram in v0.1.<br />Instagram comes next.</h2></div><div className="oc-channel-tabs" role="tablist" aria-label="Choose platform"><button type="button" role="tab" aria-selected={channel === "instagram"} className={channel === "instagram" ? "active" : ""} onClick={() => setChannel("instagram")}><Image src="/icons/instagram.svg" alt="" width={20} height={20} /> Instagram · planned</button><button type="button" role="tab" aria-selected={channel === "telegram"} className={channel === "telegram" ? "active" : ""} onClick={() => setChannel("telegram")}><Image src="/icons/telegram.svg" alt="" width={20} height={20} /> Telegram · v0.1</button></div></div>
+          <div className="oc-channel-heading"><div><p className="oc-kicker">TWO CHANNELS, ONE INBOX</p><h2>Telegram foundations.<br />Instagram automation.</h2></div><div className="oc-channel-tabs" role="tablist" aria-label="Choose platform"><button type="button" role="tab" aria-selected={channel === "instagram"} className={channel === "instagram" ? "active" : ""} onClick={() => setChannel("instagram")}><Image src="/icons/instagram.svg" alt="" width={20} height={20} /> Instagram · v0.2</button><button type="button" role="tab" aria-selected={channel === "telegram"} className={channel === "telegram" ? "active" : ""} onClick={() => setChannel("telegram")}><Image src="/icons/telegram.svg" alt="" width={20} height={20} /> Telegram</button></div></div>
           <div className="oc-channel-stage">
             <div className="oc-channel-copy"><span>/ {channel}</span><h3>{channel === "instagram" ? "Turn comments and DMs into buying conversations." : "Turn community questions into qualified customers."}</h3><p>{channel === "instagram" ? "Answer product questions, story replies, and high-intent DMs with the right context and a clear next step." : "Welcome members, answer questions, qualify interest, and hand promising conversations to your team."}</p><ul><li><Check size={16} /> Instant answers from your knowledge</li><li><Check size={16} /> Lead fields saved automatically</li><li><Check size={16} /> Human takeover at any moment</li></ul></div>
             <PhonePreview channel={channel} />
@@ -340,7 +340,7 @@ export function OpenChatLanding() {
 
         <section className="oc-oss oc-section" id="open-source">
           <div className="oc-oss-copy"><p className="oc-kicker">OPEN SOURCE BY DEFAULT</p><h2>Steal our code.<br /><span>Legally.</span></h2><p>Fork OpenChat, self-host it, connect your preferred AI provider, and keep control of the conversations your business depends on.</p><a className="oc-button sky" href={repository} target="_blank" rel="noreferrer"><Github size={18} /> Explore the repository <ArrowRight size={16} /></a></div>
-          <div className="oc-code-card"><header><span><i /> <i /> <i /></span><b>openchat / README.md</b></header><pre><code><span># OpenChat</span>{"\n\n"}Self-hosted Telegram inbox{"\n"}with human-controlled AI.{"\n\n"}<b>✓ Telegram bot + Business</b>{"\n"}<b>✓ Bring your own AI</b>{"\n"}<b>✓ Durable recovery</b>{"\n\n"}$ git clone {repository}</code></pre><footer><Code2 size={16} /> AGPL-3.0</footer></div>
+          <div className="oc-code-card"><header><span><i /> <i /> <i /></span><b>openchat / README.md</b></header><pre><code><span># OpenChat</span>{"\n\n"}Self-hosted social inbox{"\n"}with human-controlled AI.{"\n\n"}<b>✓ Instagram + Telegram</b>{"\n"}<b>✓ Comment and DM automations</b>{"\n"}<b>✓ Durable recovery</b>{"\n\n"}$ git clone {repository}</code></pre><footer><Code2 size={16} /> AGPL-3.0</footer></div>
         </section>
 
         <section className="oc-principle">
@@ -351,17 +351,17 @@ export function OpenChatLanding() {
         <section className="oc-faq oc-section" id="faq">
           <div><p className="oc-kicker">STRAIGHT ANSWERS</p><h2>Questions before you connect.</h2></div>
           <div className="oc-faq-list">
-            <details open><summary>Which channels does OpenChat support?<span>+</span></summary><p>Version 0.1 supports Telegram bots and Telegram Business secretary mode. Instagram is planned for a later release.</p></details>
+            <details open><summary>Which channels does OpenChat support?<span>+</span></summary><p>Version 0.2 supports Instagram professional accounts, Telegram bots, and Telegram Business secretary mode.</p></details>
             <details><summary>Can I use my own AI provider?<span>+</span></summary><p>Yes. Bring your own provider credentials or connect an OpenAI-compatible endpoint. The goal is to keep model choice and billing under your control.</p></details>
             <details><summary>Can my team take over a conversation?<span>+</span></summary><p>At any moment. OpenChat keeps the complete thread and customer context visible so the handoff does not force the customer to repeat themselves.</p></details>
             <details><summary>Can I self-host OpenChat?<span>+</span></summary><p>Yes. Self-hosting is a first-class part of the project, not an enterprise add-on. Deployment documentation will live in the public repository.</p></details>
             <details><summary>Will the AI sound like our business?<span>+</span></summary><p>You provide the product information, policies, examples, and tone. OpenChat uses that knowledge to prepare grounded replies instead of generic scripts.</p></details>
-            <details><summary>What does version 0.1 include?<span>+</span></summary><p>A single-workspace Telegram inbox, encrypted connection credentials, optional OpenRouter replies, durable takeover, attachments, and operator-visible retry tooling.</p></details>
+            <details><summary>What does version 0.2 include?<span>+</span></summary><p>A unified inbox, encrypted channel credentials, Instagram comment and DM campaigns, tracked links, optional AI replies, durable takeover, attachments, analytics, and operator-visible retry tooling.</p></details>
           </div>
         </section>
 
         <section className="oc-final-cta" id="start">
-          <div><p className="oc-kicker">SELF-HOST v0.1</p><h2>Your next customer is already typing.</h2><p>Clone the repository and run your own Telegram support inbox.</p></div>
+          <div><p className="oc-kicker">SELF-HOST v0.2</p><h2>Your next customer is already typing.</h2><p>Clone the repository and run your own Instagram and Telegram inbox.</p></div>
           <a className="oc-button dark" href={repository} target="_blank" rel="noreferrer"><Github size={18} /> View setup guide <ArrowRight size={16} /></a>
         </section>
       </main>

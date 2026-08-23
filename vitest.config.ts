@@ -5,5 +5,8 @@ export default defineConfig({
     environment: "node",
     include: ["server/**/*.test.ts", "app/**/*.test.ts"],
     testTimeout: 15_000,
+    // Miniflare embeds workerd; keeping a single Vitest worker prevents several
+    // runtimes from exhausting memory on Windows CI and local development.
+    maxWorkers: 1,
   },
 });

@@ -3,8 +3,8 @@ import { headers } from "next/headers";
 import "@fontsource-variable/geist";
 import "./globals.css";
 
-const title = "OpenChat — Open-source Telegram inbox with human-controlled AI";
-const description = "Self-hosted open-source Telegram inbox with bring-your-own AI, durable event recovery, and human-controlled automation.";
+const title = "OpenChat — Open-source Instagram and Telegram inbox";
+const description = "Self-hosted Instagram and Telegram inbox with bring-your-own AI, durable automations, and human-controlled replies.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const incoming = await headers();
@@ -15,6 +15,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title,
     description,
+    icons: {
+      icon: "/openchat-symbol.png",
+      apple: "/openchat-symbol.png",
+    },
     openGraph: { title, description, images: [{ url: image, width: 1672, height: 941, alt: title }] },
     twitter: { card: "summary_large_image", title, description, images: [image] },
   };

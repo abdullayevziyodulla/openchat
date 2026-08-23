@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { clearConversationDraft, conversationDraft, type ConversationDrafts, updateConversationDraft } from "./conversation-drafts";
 
-type View = "overview" | "inbox" | "contacts" | "settings";
+type View = "overview" | "inbox" | "contacts" | "automations" | "settings";
 type Channel = "telegram" | "telegram_business" | "instagram";
 type Mode = "AI_ACTIVE" | "ESCALATED" | "HUMAN_ACTIVE";
 type Status = "AI handling" | "Needs you" | "Human";
@@ -53,8 +53,8 @@ type Conversation = {
 type MessageAttachment = { type: "photo" | "document" | "video" | "video_note" | "audio" | "voice" | "animation" | "sticker"; fileName?: string; mimeType?: string; fileSize?: number; width?: number; height?: number };
 type ApiMessage = { id: number; author: "customer" | "ai" | "human"; text: string; attachment: MessageAttachment | null; replyToId: number | null; replyToText: string | null; replyToAuthor: "customer" | "ai" | "human" | null; status: string; deliveryError: string | null; createdAt: number };
 type Message = ApiMessage & { from: "customer" | "ai" | "you"; time: string };
-type OperationCounts = { failedEvents: number; failedAiJobs: number; pendingWork: number; failedMessages: number };
-type Runtime = { database: boolean; telegram: { configured: boolean }; ai: { configured: boolean; provider?: string; model: string }; operations?: OperationCounts };
+type OperationCounts = { failedEvents: number; failedAiJobs: number; pendingWork: number; failedMessages: number; failedAutomations: number; pendingAutomations: number };
+type Runtime = { database: boolean; telegram: { configured: boolean }; instagram?: { appConfigured: boolean; connected: number; healthy: number }; ai: { configured: boolean; provider?: string; model: string }; operations?: OperationCounts };
 type SettingsValue = { aiEnabled: boolean; systemPrompt: string; businessContext: string; defaultLanguage: string };
 type TelegramSetup = {
   configured: boolean;
@@ -81,10 +81,37 @@ type AiSetup = {
   error?: string;
 };
 type AiModel = { id: string; name: string; contextLength: number | null };
+type InstagramSetup = {
+  appConfigured: boolean;
+  callbackUrl: string;
+  webhookUrl: string;
+  accounts: Array<{
+    id: number;
+    instagramUserId: string;
+    username: string;
+    displayName: string | null;
+    profilePictureUrl: string | null;
+    tokenExpiresAt: number | null;
+    webhookSubscribed: boolean;
+    lastError: string | null;
+  }>;
+};
+type InstagramAutomation = {
+  id: number; instagramAccountId: number; accountUsername: string; name: string; triggerType: "comment" | "dm";
+  postId: string | null; matchAnyPost: boolean; matchAnyText: boolean; keywords: string[]; wholeWordMatch: boolean;
+  privateReplyMessage: string; openingDmEnabled: boolean; openingDmMessage: string | null; openingDmButtonLabel: string | null;
+  linkButtonLabel: string | null; requireFollow: boolean; followPromptMessage: string | null; followPromptButtonLabel: string | null;
+  followUpEnabled: boolean; followUpMessage: string | null; followUpDelayMinutes: number; pendingNextReel: boolean;
+  trackedLinks: Array<{ id: number; slug: string; label: string; destinationUrl: string; position: number }>;
+  publicReplyEnabled: boolean; publicReplyMessage: string | null; active: boolean; updatedAt: number;
+};
+type InstagramAutomationAnalytics = { automationId: number; name: string; accountUsername: string; runs: number; privateReplies: number; reveals: number; publicReplies: number; followUps: number; failures: number; clicks: number };
+type InstagramMediaItem = { id: string; mediaType?: string; mediaProductType?: string; timestamp?: string; permalink?: string };
 type OperationsValue = {
   events: { id: number; provider: string; externalId: string; status: string; attempts: number; lastError: string | null; receivedAt: number }[];
   aiJobs: { conversationId: number; conversationName: string; status: string; attempts: number; lastError: string | null; updatedAt: number }[];
   failedMessages: { id: number; conversationId: number; conversationName: string; body: string; attempts: number; lastError: string | null; createdAt: number }[];
+  automationRuns: { id: number; automationName: string; accountUsername: string; triggerType: "comment" | "dm"; subjectUsername: string | null; status: string; attempts: number; privateReplySentAt: number | null; publicReplySentAt: number | null; lastError: string | null; updatedAt: number }[];
   counts: OperationCounts;
 };
 
@@ -94,6 +121,7 @@ type OperationsValue = {
 let cachedSettingsTab: "channels" | "ai" | "operations" = "channels";
 let cachedSettingsValue: SettingsValue | null = null;
 let cachedTelegramSetup: TelegramSetup | null = null;
+let cachedInstagramSetup: InstagramSetup | null = null;
 let cachedAiSetup: AiSetup | null = null;
 
 const AI_PROVIDER_NAMES: Record<string, string> = { "openrouter": "OpenRouter", "openai": "OpenAI", "anthropic": "Anthropic", "google": "Google", "meta-llama": "Meta", "deepseek": "DeepSeek", "qwen": "Qwen", "mistralai": "Mistral", "x-ai": "xAI", "moonshotai": "Moonshot", "cohere": "Cohere", "perplexity": "Perplexity", "nvidia": "NVIDIA", "bytedance-seed": "ByteDance", "upstage": "Upstage", "liquid": "Liquid AI", "togethercomputer": "Together AI", "groq": "Groq", "huggingfaceh4": "Hugging Face", "minimax": "MiniMax", "stepfun": "StepFun", "z-ai": "Z.ai" };
@@ -152,6 +180,7 @@ const nav = [
   { id: "overview" as View, label: "Overview", icon: LayoutDashboard },
   { id: "inbox" as View, label: "Inbox", icon: InboxIcon },
   { id: "contacts" as View, label: "Contacts", icon: ContactRound },
+  { id: "automations" as View, label: "Automations", icon: WandSparkles },
 ];
 
 function ChannelLogo({ channel, size = 20 }: { channel: Channel; size?: number }) {
@@ -177,6 +206,8 @@ export function DashboardApp() {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
 
   const flash = useCallback((text: string) => {
     setToast(text);
@@ -214,6 +245,23 @@ export function DashboardApp() {
   }, []);
 
   useEffect(() => {
+    if (!accountMenuOpen) return;
+    function closeAccountMenu(event: MouseEvent | KeyboardEvent) {
+      if (event instanceof KeyboardEvent) {
+        if (event.key === "Escape") setAccountMenuOpen(false);
+        return;
+      }
+      if (!accountMenuRef.current?.contains(event.target as Node)) setAccountMenuOpen(false);
+    }
+    document.addEventListener("mousedown", closeAccountMenu);
+    document.addEventListener("keydown", closeAccountMenu);
+    return () => {
+      document.removeEventListener("mousedown", closeAccountMenu);
+      document.removeEventListener("keydown", closeAccountMenu);
+    };
+  }, [accountMenuOpen]);
+
+  useEffect(() => {
     if (auth !== "signed-in") return;
     const initial = window.setTimeout(() => {
       void loadConversations();
@@ -247,6 +295,7 @@ export function DashboardApp() {
   }
 
   async function logout() {
+    setAccountMenuOpen(false);
     await api("/api/auth/logout", { method: "POST" }); setAuth("signed-out"); setConversations([]); setMessages([]); setDrafts({});
   }
 
@@ -303,7 +352,14 @@ export function DashboardApp() {
       <nav aria-label="Dashboard navigation"><p>Workspace</p>{nav.map((item) => { const Icon = item.icon; return <button key={item.id} type="button" className={view === item.id ? "active" : ""} aria-current={view === item.id ? "page" : undefined} title={item.label} onClick={() => setView(item.id)}><Icon size={18} /><span>{item.label}</span>{item.id === "inbox" && unread ? <em>{unread}</em> : null}</button>; })}<p>Manage</p><button type="button" className={view === "settings" ? "active" : ""} aria-current={view === "settings" ? "page" : undefined} title="Settings" onClick={() => setView("settings")}><SettingsIcon size={18} /><span>Settings</span></button></nav>
       <div className="sidebar-footer">
         <div className="usage-card"><span><Bot size={15} /> AI assistant</span><strong>{runtime?.ai.configured ? runtime.ai.model : "Not configured"}</strong><small>{runtime?.ai.configured ? "Provider key is stored server-side" : "Add an AI key to enable replies"}</small></div>
-        <button className="user-menu" type="button" title="Sign out" onClick={logout}><span>AD</span><b>Administrator<small>Sign out</small></b><LogOut size={17} /></button>
+        <div className={`account-menu ${accountMenuOpen ? "open" : ""}`} ref={accountMenuRef}>
+          <button className="user-menu" type="button" title="Open account menu" aria-haspopup="menu" aria-expanded={accountMenuOpen} onClick={() => setAccountMenuOpen((open) => !open)}><span>AD</span><b>Administrator<small>Account menu</small></b><MoreHorizontal size={17} /></button>
+          {accountMenuOpen ? <div className="account-menu-popover" role="menu" aria-label="Administrator menu">
+            <button type="button" role="menuitem" onClick={() => { setView("settings"); setAccountMenuOpen(false); }}><SettingsIcon size={16} /><span><b>Settings</b><small>Manage this workspace</small></span></button>
+            <div className="account-menu-separator" />
+            <button className="account-sign-out" type="button" role="menuitem" onClick={() => void logout()}><LogOut size={16} /><span><b>Sign out</b><small>End this session</small></span></button>
+          </div> : null}
+        </div>
       </div>
     </aside>
     <main className="dashboard-main">
@@ -311,6 +367,7 @@ export function DashboardApp() {
       {view === "overview" ? <Overview conversations={conversations} runtime={runtime} onOpen={setView} /> : null}
       {view === "inbox" ? <Inbox conversations={conversations} active={active} selected={selected} messages={messages} draft={draft} busy={busy} aiConfigured={Boolean(runtime?.ai.configured)} onSelect={setSelected} onDraft={setDraft} onSend={sendMessage} onMode={changeMode} /> : null}
       {view === "contacts" ? <Contacts conversations={conversations} onOpen={(id) => { setSelected(id); setView("inbox"); }} /> : null}
+      {view === "automations" ? <Automations onFlash={flash} /> : null}
       {view === "settings" ? <Settings runtime={runtime} onRuntime={setRuntime} onFlash={flash} /> : null}
     </main>
     {toast ? <div className="toast"><Check size={16} />{toast}</div> : null}
@@ -328,7 +385,7 @@ function Overview({ conversations, runtime, onOpen }: { conversations: Conversat
   return <section className="page overview-page"><PageHeader eyebrow="Self-hosted workspace" title="Your OpenChat inbox" description="Live data from this installation. Connect a channel in Settings to receive the first message." action="Open inbox" onAction={() => onOpen("inbox")} />
     <div className="metrics-grid"><Metric label="Conversations" value={String(conversations.length)} note="Stored locally" trend="Live" /><Metric label="Needs attention" value={String(attention.length)} note="Escalated or human" trend={attention.length ? "Review" : "Clear"} /><Metric label="AI handling" value={String(aiActive)} note="Active conversations" trend={runtime?.ai.configured ? "Ready" : "Setup"} /><Metric label="Unread messages" value={String(unread)} note="Across channels" trend={unread ? "New" : "Clear"} /></div>
     <div className="overview-grid"><section className="panel priority-panel"><PanelHeader title="Needs your attention" meta={`${attention.length} conversations`} action="View inbox" onAction={() => onOpen("inbox")} /><div className="attention-list">{attention.slice(0, 5).map((item, index) => <button key={item.id} onClick={() => onOpen("inbox")}><Avatar initials={item.initials} index={index} /><span><b>{item.name}</b><small>{item.preview}</small></span><ChannelLogo channel={item.channel} size={17} /><time>{item.time}</time><ChevronRight size={16} /></button>)}{!attention.length ? <EmptyRow text={conversations.length ? "Nothing needs you right now." : "No conversations yet. Send a message to your connected bot."} /> : null}</div></section>
-      <section className="panel channel-panel"><PanelHeader title="Runtime" meta="Configuration" action="Settings" onAction={() => onOpen("settings")} /><div className="channel-health"><HealthRow label="Database" detail="Durable conversation history" ready={Boolean(runtime?.database)} /><HealthRow label="Telegram" detail="Bot and webhook secrets" ready={Boolean(runtime?.telegram.configured)} /><HealthRow label="AI provider" detail={runtime?.ai.configured ? runtime.ai.model : "Not configured"} ready={Boolean(runtime?.ai.configured)} /></div></section></div>
+      <section className="panel channel-panel"><PanelHeader title="Runtime" meta="Configuration" action="Settings" onAction={() => onOpen("settings")} /><div className="channel-health"><HealthRow label="Database" detail="Durable conversation history" ready={Boolean(runtime?.database)} /><HealthRow label="Telegram" detail="Bot and webhook secrets" ready={Boolean(runtime?.telegram.configured)} /><HealthRow label="Instagram" detail={runtime?.instagram?.connected ? `${runtime.instagram.connected} connected account${runtime.instagram.connected === 1 ? "" : "s"}` : "Meta app and account connection"} ready={Boolean(runtime?.instagram?.connected && runtime.instagram.healthy === runtime.instagram.connected)} /><HealthRow label="AI provider" detail={runtime?.ai.configured ? runtime.ai.model : "Not configured"} ready={Boolean(runtime?.ai.configured)} /></div></section></div>
   </section>;
 }
 
@@ -395,7 +452,7 @@ function Inbox({ conversations, active, selected, messages, draft, busy, aiConfi
     }
   }
   return <section className={`inbox-page ${mobileOpen ? "mobile-open" : ""}`}><aside className="conversation-pane"><header><div><span>Conversations</span><h1>Inbox</h1></div></header><label className="inbox-search"><Search size={15} /><input placeholder="Search conversations" /></label><div className="filter-tabs">{(["All", "AI handling", "Needs you"] as const).map((item) => <button key={item} className={filter === item ? "active" : ""} onClick={() => setFilter(item)}>{item === "AI handling" ? "AI" : item}</button>)}</div><div className="conversation-list">{filtered.map((item, index) => <button key={item.id} className={selected === item.id ? "active" : ""} onClick={() => selectConversation(item.id)}><Avatar initials={item.initials} index={index} /><span><b>{item.name}</b><small>{item.preview}</small><em className={item.status.toLowerCase().replaceAll(" ", "-")}>{item.status}</em></span><time>{item.time}{item.unread ? <strong>{item.unread}</strong> : null}</time></button>)}{!filtered.length ? <EmptyRow text="No matching conversations." /> : null}</div></aside>
-    {active ? <><section className="chat-pane"><header><button className="mobile-back" onClick={() => setMobileOpen(false)} aria-label="Back to conversations"><ArrowLeft size={18} /></button><Avatar initials={active.initials} /><span><b>{active.name}</b><small><ChannelLogo channel={active.channel} size={13} />{channelLabel(active.channel)} · {active.status}</small></span><button className="take-over" onClick={() => onMode(active.mode === "AI_ACTIVE" ? "HUMAN_ACTIVE" : "AI_ACTIVE")}>{active.mode === "AI_ACTIVE" ? "Take over" : "Resume AI"}</button></header><div ref={messagesViewport} className="messages"><div className="day-divider"><span>Conversation</span></div>{messages.map((message) => <div key={message.id} className={`message ${message.from}`}><div className="message-heading"><small>{message.from === "ai" ? "OpenChat AI" : message.from === "you" ? `You · ${message.status}` : ""}</small><button type="button" aria-label={`Reply to ${message.text}`} onClick={() => { setReplyingTo(message); composerInput.current?.focus(); }}><Reply size={13} />Reply</button></div><div className="message-content">{message.replyToText ? <blockquote><span>{message.replyToAuthor === "customer" ? active.name : message.replyToAuthor === "ai" ? "OpenChat AI" : "You"}</span>{message.replyToText}</blockquote> : null}{message.attachment?.type === "photo" ? <Image className="message-photo" src={`/api/messages/${message.id}/attachment`} alt={message.text || "Telegram photo"} width={420} height={280} unoptimized onLoad={scrollMessagesToEnd} /> : message.attachment ? <a className="message-file" href={`/api/messages/${message.id}/attachment`} target="_blank" rel="noreferrer"><FileText size={20} /><span><b>{message.attachment.fileName ?? message.attachment.type}</b><small>{message.attachment.fileSize ? `${Math.ceil(message.attachment.fileSize / 1024)} KB` : "Open attachment"}</small></span></a> : null}<p>{message.text}</p></div><time>{message.time}</time></div>)}</div><footer className="composer-wrap"><div className="suggested-replies"><button onClick={() => { onDraft("Albatta, hozir tekshirib beraman."); setImproveError(""); }}>Check availability</button><button onClick={() => { onDraft("Iltimos, batafsil ma’lumot yuboring."); setImproveError(""); }}>Ask for details</button></div><div className="composer">{replyingTo ? <div className="composer-context"><Reply size={14} /><span><b>Replying to {replyingTo.from === "customer" ? active.name : replyingTo.from === "ai" ? "OpenChat AI" : "your message"}</b><small>{replyingTo.text}</small></span><button type="button" aria-label="Cancel reply" onClick={() => setReplyingTo(null)}><X size={15} /></button></div> : null}{attachment ? <div className="composer-context attachment-context"><Paperclip size={14} /><span><b>{attachment.name}</b><small>{Math.ceil(attachment.size / 1024)} KB</small></span><button type="button" aria-label="Remove attachment" onClick={() => { setAttachment(null); if (fileInput.current) fileInput.current.value = ""; }}><X size={15} /></button></div> : null}{improveError ? <div className="composer-error" role="alert">{improveError}</div> : null}<textarea ref={composerInput} value={draft} onChange={(event) => { onDraft(event.target.value); setImproveError(""); }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitReply(); } }} placeholder={attachment ? "Add a caption…" : "Write a reply…"} /><div><label className="attachment-button" aria-label="Attach photo or file"><Paperclip size={17} /><input ref={fileInput} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.json" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} /></label><button type="button" title={!aiConfigured ? "Connect an AI provider in Settings first" : "Rewrite this draft with AI"} disabled={busy || improving || !draft.trim() || !aiConfigured} onClick={() => void improveMessage()}><WandSparkles size={16} />{improving ? "Improving…" : "Improve"}</button><button className="send-button" disabled={busy || improving || (!draft.trim() && !attachment)} onClick={() => void submitReply()}>{busy ? "Sending…" : "Send"}<Send size={15} /></button></div></div></footer></section><aside className="details-pane"><header><span>Contact details</span></header><div className="contact-profile"><Avatar initials={active.initials} /><h2>{active.name}</h2><p>{active.username ? `@${active.username}` : "Telegram contact"}</p></div><section><h3>Conversation</h3><dl><div><dt>Status</dt><dd>{active.status}</dd></div><div><dt>Stage</dt><dd>{active.stage}</dd></div><div><dt>Channel</dt><dd><ChannelLogo channel={active.channel} size={15} />{channelLabel(active.channel)}</dd></div></dl></section><section><h3>AI safety</h3><div className="context-note"><Bot size={16} /><p><b>Human control</b>Taking over pauses future AI replies before they are sent.</p></div></section></aside></> : <section className="chat-pane empty-chat"><Bot size={34} /><h2>Your inbox is ready</h2><p>Connect Telegram in Settings, then message the bot or your business profile.</p></section>}
+    {active ? <><section className="chat-pane"><header><button className="mobile-back" onClick={() => setMobileOpen(false)} aria-label="Back to conversations"><ArrowLeft size={18} /></button><Avatar initials={active.initials} /><span><b>{active.name}</b><small><ChannelLogo channel={active.channel} size={13} />{channelLabel(active.channel)} · {active.status}</small></span><button className="take-over" onClick={() => onMode(active.mode === "AI_ACTIVE" ? "HUMAN_ACTIVE" : "AI_ACTIVE")}>{active.mode === "AI_ACTIVE" ? "Take over" : "Resume AI"}</button></header><div ref={messagesViewport} className="messages"><div className="day-divider"><span>Conversation</span></div>{messages.map((message) => <div key={message.id} className={`message ${message.from}`}><div className="message-heading"><small>{message.from === "ai" ? "OpenChat AI" : message.from === "you" ? `You · ${message.status}` : ""}</small><button type="button" aria-label={`Reply to ${message.text}`} onClick={() => { setReplyingTo(message); composerInput.current?.focus(); }}><Reply size={13} />Reply</button></div><div className="message-content">{message.replyToText ? <blockquote><span>{message.replyToAuthor === "customer" ? active.name : message.replyToAuthor === "ai" ? "OpenChat AI" : "You"}</span>{message.replyToText}</blockquote> : null}{message.attachment?.type === "photo" ? <Image className="message-photo" src={`/api/messages/${message.id}/attachment`} alt={message.text || "Conversation attachment"} width={420} height={280} unoptimized onLoad={scrollMessagesToEnd} /> : message.attachment ? <a className="message-file" href={`/api/messages/${message.id}/attachment`} target="_blank" rel="noreferrer"><FileText size={20} /><span><b>{message.attachment.fileName ?? message.attachment.type}</b><small>{message.attachment.fileSize ? `${Math.ceil(message.attachment.fileSize / 1024)} KB` : "Open attachment"}</small></span></a> : null}<p>{message.text}</p></div><time>{message.time}</time></div>)}</div><footer className="composer-wrap"><div className="suggested-replies"><button onClick={() => { onDraft("Albatta, hozir tekshirib beraman."); setImproveError(""); }}>Check availability</button><button onClick={() => { onDraft("Iltimos, batafsil ma’lumot yuboring."); setImproveError(""); }}>Ask for details</button></div><div className="composer">{replyingTo ? <div className="composer-context"><Reply size={14} /><span><b>Replying to {replyingTo.from === "customer" ? active.name : replyingTo.from === "ai" ? "OpenChat AI" : "your message"}</b><small>{replyingTo.text}</small></span><button type="button" aria-label="Cancel reply" onClick={() => setReplyingTo(null)}><X size={15} /></button></div> : null}{attachment ? <div className="composer-context attachment-context"><Paperclip size={14} /><span><b>{attachment.name}</b><small>{Math.ceil(attachment.size / 1024)} KB</small></span><button type="button" aria-label="Remove attachment" onClick={() => { setAttachment(null); if (fileInput.current) fileInput.current.value = ""; }}><X size={15} /></button></div> : null}{improveError ? <div className="composer-error" role="alert">{improveError}</div> : null}<textarea ref={composerInput} value={draft} onChange={(event) => { onDraft(event.target.value); setImproveError(""); }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submitReply(); } }} placeholder={attachment ? "Add a caption…" : "Write a reply…"} /><div><label className="attachment-button" aria-label="Attach media or file"><Paperclip size={17} /><input ref={fileInput} type="file" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.json" onChange={(event) => setAttachment(event.target.files?.[0] ?? null)} /></label><button type="button" title={!aiConfigured ? "Connect an AI provider in Settings first" : "Rewrite this draft with AI"} disabled={busy || improving || !draft.trim() || !aiConfigured} onClick={() => void improveMessage()}><WandSparkles size={16} />{improving ? "Improving…" : "Improve"}</button><button className="send-button" disabled={busy || improving || (!draft.trim() && !attachment)} onClick={() => void submitReply()}>{busy ? "Sending…" : "Send"}<Send size={15} /></button></div></div></footer></section><aside className="details-pane"><header><span>Contact details</span></header><div className="contact-profile"><Avatar initials={active.initials} /><h2>{active.name}</h2><p>{active.username ? `@${active.username}` : `${channelLabel(active.channel)} contact`}</p></div><section><h3>Conversation</h3><dl><div><dt>Status</dt><dd>{active.status}</dd></div><div><dt>Stage</dt><dd>{active.stage}</dd></div><div><dt>Channel</dt><dd><ChannelLogo channel={active.channel} size={15} />{channelLabel(active.channel)}</dd></div></dl></section><section><h3>AI safety</h3><div className="context-note"><Bot size={16} /><p><b>Human control</b>Taking over pauses future AI replies before they are sent.</p></div></section></aside></> : <section className="chat-pane empty-chat"><Bot size={34} /><h2>Your inbox is ready</h2><p>Connect Instagram or Telegram in Settings, then send a message to that channel.</p></section>}
   </section>;
 }
 
@@ -434,7 +491,7 @@ function AssistantTester({ settings, configured, model }: { settings: SettingsVa
     finally { setBusy(false); }
   }
 
-  return <section className="settings-section assistant-tester"><header><div><span>Test assistant</span><h2>{messages.length ? "Test session" : "New test session"}</h2><small>{model || "No model selected"}</small></div>{messages.length ? <button className="button secondary" type="button" onClick={() => { setMessages([]); setError(""); }}>Reset</button> : null}</header><div className="test-chat" aria-live="polite">{messages.length ? messages.map((message) => <article key={message.id} className={`test-message ${message.role} ${message.escalated ? "escalated" : ""}`}><span>{message.role === "user" ? "You" : "OpenChat AI"}</span><p>{message.text}</p></article>) : <div className="test-empty"><span><Bot size={23} /></span><h3>Try your assistant before going live</h3><p>This private test uses the instruction and business-knowledge drafts shown beside it. Nothing is sent to Telegram or saved in the inbox.</p><div><button type="button" onClick={() => setDraft("What are your opening hours?")}>Ask about hours</button><button type="button" onClick={() => setDraft("What is the status of my order?")}>Test an unknown answer</button></div></div>}{busy ? <article className="test-message assistant pending"><span>OpenChat AI</span><p>Thinking…</p></article> : null}</div><footer><textarea aria-label="Test message" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendTestMessage(); } }} placeholder={configured ? "Message your assistant…" : "Connect an AI provider to start testing"} disabled={!configured || !settings} /><button className="send-button" type="button" aria-label="Send test message" disabled={!configured || !settings || busy || !draft.trim()} onClick={() => void sendTestMessage()}><Send size={16} /></button>{error ? <div className="test-error" role="alert">{error}</div> : null}</footer></section>;
+  return <section className="settings-section assistant-tester"><header><div><span>Test assistant</span><h2>{messages.length ? "Test session" : "New test session"}</h2><small>{model || "No model selected"}</small></div>{messages.length ? <button className="button secondary" type="button" onClick={() => { setMessages([]); setError(""); }}>Reset</button> : null}</header><div className="test-chat" aria-live="polite">{messages.length ? messages.map((message) => <article key={message.id} className={`test-message ${message.role} ${message.escalated ? "escalated" : ""}`}><span>{message.role === "user" ? "You" : "OpenChat AI"}</span><p>{message.text}</p></article>) : <div className="test-empty"><span><Bot size={23} /></span><h3>Try your assistant before going live</h3><p>This private test uses the instruction and business-knowledge drafts shown beside it. Nothing is sent to a connected channel or saved in the inbox.</p><div><button type="button" onClick={() => setDraft("What are your opening hours?")}>Ask about hours</button><button type="button" onClick={() => setDraft("What is the status of my order?")}>Test an unknown answer</button></div></div>}{busy ? <article className="test-message assistant pending"><span>OpenChat AI</span><p>Thinking…</p></article> : null}</div><footer><textarea aria-label="Test message" value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendTestMessage(); } }} placeholder={configured ? "Message your assistant…" : "Connect an AI provider to start testing"} disabled={!configured || !settings} /><button className="send-button" type="button" aria-label="Send test message" disabled={!configured || !settings || busy || !draft.trim()} onClick={() => void sendTestMessage()}><Send size={16} /></button>{error ? <div className="test-error" role="alert">{error}</div> : null}</footer></section>;
 }
 
 function ModelPicker({ models, value, loading, error, onChange, onRetry }: { models: AiModel[]; value: string; loading: boolean; error: string; onChange: (model: string) => void; onRetry: () => void }) {
@@ -471,6 +528,161 @@ function Contacts({ conversations, onOpen }: { conversations: Conversation[]; on
   return <section className="page"><PageHeader eyebrow="Audience" title="Contacts" description="People who have messaged a connected channel." /><section className="table-panel"><div className="table-toolbar"><label><Search size={15} /><input placeholder="Search name or username" /></label><span>{conversations.length} contacts</span></div><div className="contact-table"><header><span>Contact</span><span>Stage</span><span>Channel</span><span>Mode</span><span>Last activity</span><span /></header>{conversations.map((item, index) => <button key={item.id} onClick={() => onOpen(item.id)}><span><Avatar initials={item.initials} index={index} /><b>{item.name}<small>{item.username ? `@${item.username}` : "No username"}</small></b></span><em>{item.stage}</em><span><ChannelLogo channel={item.channel} size={17} />{channelLabel(item.channel)}</span><span>{item.status}</span><time>{item.time}</time><ChevronRight size={15} /></button>)}{!conversations.length ? <EmptyRow text="Contacts appear after someone messages your bot or business profile." /> : null}</div></section></section>;
 }
 
+function Automations({ onFlash }: { onFlash: (text: string) => void }) {
+  const [automations, setAutomations] = useState<InstagramAutomation[]>([]);
+  const [analytics, setAnalytics] = useState<InstagramAutomationAnalytics[]>([]);
+  const [accounts, setAccounts] = useState<InstagramSetup["accounts"]>([]);
+  const [media, setMedia] = useState<InstagramMediaItem[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [accountId, setAccountId] = useState(0);
+  const [name, setName] = useState("");
+  const [triggerType, setTriggerType] = useState<"comment" | "dm">("comment");
+  const [postId, setPostId] = useState("");
+  const [matchAnyPost, setMatchAnyPost] = useState(true);
+  const [pendingNextReel, setPendingNextReel] = useState(false);
+  const [keywords, setKeywords] = useState("");
+  const [matchAnyText, setMatchAnyText] = useState(false);
+  const [privateReply, setPrivateReply] = useState("");
+  const [linkLabel, setLinkLabel] = useState("Open link");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [secondLinkLabel, setSecondLinkLabel] = useState("");
+  const [secondLinkUrl, setSecondLinkUrl] = useState("");
+  const [thirdLinkLabel, setThirdLinkLabel] = useState("");
+  const [thirdLinkUrl, setThirdLinkUrl] = useState("");
+  const [openingEnabled, setOpeningEnabled] = useState(false);
+  const [openingMessage, setOpeningMessage] = useState("");
+  const [openingButton, setOpeningButton] = useState("Send it");
+  const [followEnabled, setFollowEnabled] = useState(false);
+  const [followMessage, setFollowMessage] = useState("Follow this account, then tap below to continue.");
+  const [followButton, setFollowButton] = useState("I'm following");
+  const [followUpEnabled, setFollowUpEnabled] = useState(false);
+  const [followUpMessage, setFollowUpMessage] = useState("");
+  const [followUpDelay, setFollowUpDelay] = useState(0);
+  const [publicEnabled, setPublicEnabled] = useState(false);
+  const [publicReply, setPublicReply] = useState("");
+  const load = useCallback(async () => {
+    const [automationResult, analyticsResult, setup] = await Promise.all([
+      api<{ automations: InstagramAutomation[] }>("/api/instagram/automations"),
+      api<{ analytics: InstagramAutomationAnalytics[] }>("/api/instagram/automation-analytics"),
+      api<InstagramSetup>("/api/setup/instagram"),
+    ]);
+    setAutomations(automationResult.automations);
+    setAnalytics(analyticsResult.analytics);
+    setAccounts(setup.accounts);
+    setAccountId((current) => current || setup.accounts[0]?.id || 0);
+  }, []);
+  useEffect(() => {
+    const initial = window.setTimeout(() => void load().catch((reason) => setError(reason instanceof Error ? reason.message : "Could not load automations")), 0);
+    return () => window.clearTimeout(initial);
+  }, [load]);
+  useEffect(() => {
+    if (!showForm || !accountId || triggerType !== "comment") return;
+    let active = true;
+    void api<{ media: InstagramMediaItem[] }>(`/api/instagram/accounts/${accountId}/media`)
+      .then((result) => { if (active) setMedia(result.media); })
+      .catch(() => { if (active) setMedia([]); });
+    return () => { active = false; };
+  }, [accountId, showForm, triggerType]);
+  function resetForm() {
+    setEditingId(null); setName(""); setTriggerType("comment"); setPostId(""); setMatchAnyPost(true); setPendingNextReel(false);
+    setKeywords(""); setMatchAnyText(false); setPrivateReply(""); setLinkLabel("Open link"); setLinkUrl("");
+    setSecondLinkLabel(""); setSecondLinkUrl(""); setThirdLinkLabel(""); setThirdLinkUrl("");
+    setOpeningEnabled(false); setOpeningMessage(""); setOpeningButton("Send it");
+    setFollowEnabled(false); setFollowMessage("Follow this account, then tap below to continue."); setFollowButton("I'm following");
+    setFollowUpEnabled(false); setFollowUpMessage(""); setFollowUpDelay(0); setPublicEnabled(false); setPublicReply(""); setError("");
+  }
+  function startCreate() { resetForm(); setAccountId(accounts[0]?.id ?? 0); setShowForm(true); }
+  function startEdit(automation: InstagramAutomation) {
+    setEditingId(automation.id); setAccountId(automation.instagramAccountId); setName(automation.name); setTriggerType(automation.triggerType);
+    setPostId(automation.postId ?? ""); setMatchAnyPost(automation.matchAnyPost); setPendingNextReel(automation.pendingNextReel);
+    setKeywords(automation.keywords.join(", ")); setMatchAnyText(automation.matchAnyText); setPrivateReply(automation.privateReplyMessage);
+    setLinkLabel(automation.trackedLinks[0]?.label ?? automation.linkButtonLabel ?? "Open link"); setLinkUrl(automation.trackedLinks[0]?.destinationUrl ?? "");
+    setSecondLinkLabel(automation.trackedLinks[1]?.label ?? ""); setSecondLinkUrl(automation.trackedLinks[1]?.destinationUrl ?? "");
+    setThirdLinkLabel(automation.trackedLinks[2]?.label ?? ""); setThirdLinkUrl(automation.trackedLinks[2]?.destinationUrl ?? "");
+    setOpeningEnabled(automation.openingDmEnabled); setOpeningMessage(automation.openingDmMessage ?? ""); setOpeningButton(automation.openingDmButtonLabel ?? "Send it");
+    setFollowEnabled(automation.requireFollow); setFollowMessage(automation.followPromptMessage ?? "Follow this account, then tap below to continue."); setFollowButton(automation.followPromptButtonLabel ?? "I'm following");
+    setFollowUpEnabled(automation.followUpEnabled); setFollowUpMessage(automation.followUpMessage ?? ""); setFollowUpDelay(automation.followUpDelayMinutes);
+    setPublicEnabled(automation.publicReplyEnabled); setPublicReply(automation.publicReplyMessage ?? ""); setError(""); setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  function closeForm() { resetForm(); setShowForm(false); }
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const existing = editingId ? automations.find((automation) => automation.id === editingId) : null;
+      const result = await api<{ automations: InstagramAutomation[] }>(editingId ? `/api/instagram/automations/${editingId}` : "/api/instagram/automations", {
+        method: editingId ? "PUT" : "POST",
+        body: JSON.stringify({
+          instagramAccountId: accountId, name, triggerType, postId, matchAnyPost, matchAnyText,
+          keywords: keywords.split(",").map((keyword) => keyword.trim()).filter(Boolean), wholeWordMatch: true,
+          privateReplyMessage: privateReply, publicReplyEnabled: publicEnabled, publicReplyMessage: publicReply,
+          pendingNextReel, openingDmEnabled: openingEnabled, openingDmMessage: openingMessage, openingDmButtonLabel: openingButton,
+          linkButtonLabel: linkLabel, requireFollow: followEnabled, followPromptMessage: followMessage, followPromptButtonLabel: followButton,
+          followUpEnabled, followUpMessage, followUpDelayMinutes: followUpDelay,
+          trackedLinks: [{ label: linkLabel, destinationUrl: linkUrl }, { label: secondLinkLabel, destinationUrl: secondLinkUrl }, { label: thirdLinkLabel, destinationUrl: thirdLinkUrl }].filter((link) => link.destinationUrl),
+          active: existing?.active,
+        }),
+      });
+      setAutomations(result.automations);
+      closeForm();
+      await load();
+      onFlash(editingId ? "Instagram automation updated" : "Instagram automation created");
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save automation"); }
+    finally { setBusy(false); }
+  }
+  async function toggle(automation: InstagramAutomation) {
+    setBusy(true);
+    try {
+      const result = await api<{ automations: InstagramAutomation[] }>(`/api/instagram/automations/${automation.id}`, { method: "PATCH", body: JSON.stringify({ active: !automation.active }) });
+      setAutomations(result.automations);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not update automation"); }
+    finally { setBusy(false); }
+  }
+  async function remove(id: number) {
+    setBusy(true);
+    try {
+      const result = await api<{ automations: InstagramAutomation[] }>(`/api/instagram/automations/${id}`, { method: "DELETE" });
+      setAutomations(result.automations);
+      onFlash("Automation deleted");
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not delete automation"); }
+    finally { setBusy(false); }
+  }
+  return <section className="page"><PageHeader eyebrow="Instagram" title="Automations" description="Turn comments or incoming DMs into immediate, tracked replies." action={accounts.length ? showForm ? "Close builder" : "New automation" : undefined} onAction={() => showForm ? closeForm() : startCreate()} />
+    {!accounts.length ? <section className="settings-section"><div className="provider-notice"><AlertTriangle size={16} /><span>Connect an Instagram professional account in Settings before creating an automation.</span></div></section> : null}
+    {showForm ? <form className="settings-section automation-builder" onSubmit={save}>
+      <header><div><h2>{editingId ? "Edit automation" : "Create automation"}</h2><p>Build a durable comment-to-DM or incoming-DM campaign. Use <code>{"{username}"}</code> for personalization.</p></div></header>
+      <div className="automation-form-grid">
+        <label className="field"><span>Account</span><select aria-label="Instagram account" value={accountId} onChange={(event) => { setAccountId(Number(event.target.value)); setPostId(""); }}>{accounts.map((account) => <option key={account.id} value={account.id}>@{account.username}</option>)}</select></label>
+        <label className="field"><span>Name</span><input aria-label="Automation name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Send product guide" required /></label>
+        <label className="field"><span>Trigger</span><select aria-label="Automation trigger" value={triggerType} onChange={(event) => setTriggerType(event.target.value as "comment" | "dm")}><option value="comment">Post comment</option><option value="dm">Incoming DM</option></select></label>
+        {triggerType === "comment" ? <><label className="check-field"><input aria-label="Match comments on any post" type="checkbox" checked={matchAnyPost} onChange={(event) => { setMatchAnyPost(event.target.checked); if (event.target.checked) setPendingNextReel(false); }} /><span>Match comments on any post</span></label><label className="check-field"><input aria-label="Attach to the next Reel published" type="checkbox" checked={pendingNextReel} onChange={(event) => { setPendingNextReel(event.target.checked); if (event.target.checked) setMatchAnyPost(false); }} /><span>Attach to the next Reel published</span></label>{!matchAnyPost && !pendingNextReel ? <label className="field wide"><span>Instagram post</span><select aria-label="Instagram post" value={postId} onChange={(event) => setPostId(event.target.value)} required><option value="">Choose a recent post…</option>{media.map((item) => <option key={item.id} value={item.id}>{item.mediaProductType || item.mediaType || "Post"} · {item.timestamp ? new Date(item.timestamp).toLocaleDateString() : item.id} · {item.id}</option>)}</select><small className="field-hint">Recent posts are loaded directly from the connected account.</small></label> : null}</> : null}
+        <label className="check-field"><input aria-label="Match any text" type="checkbox" checked={matchAnyText} onChange={(event) => setMatchAnyText(event.target.checked)} /><span>Match any text</span></label>
+        {!matchAnyText ? <label className="field wide"><span>Keywords</span><input aria-label="Keywords" value={keywords} onChange={(event) => setKeywords(event.target.value)} placeholder="guide, price, link" required /><small className="field-hint">Comma-separated, Unicode-aware whole-word matching.</small></label> : null}
+        <label className="field wide"><span>Reveal message</span><textarea aria-label="Reveal message" value={privateReply} onChange={(event) => setPrivateReply(event.target.value)} placeholder="Hi {username}, here is the guide…" required /></label>
+        <label className="field"><span>Primary link label</span><input aria-label="Primary link label" value={linkLabel} maxLength={20} onChange={(event) => setLinkLabel(event.target.value)} /></label><label className="field"><span>Primary HTTPS link (optional)</span><input aria-label="Primary HTTPS link" type="url" value={linkUrl} onChange={(event) => setLinkUrl(event.target.value)} placeholder="https://example.com/guide" /></label>
+        <label className="field"><span>Second link label</span><input aria-label="Second link label" value={secondLinkLabel} maxLength={20} onChange={(event) => setSecondLinkLabel(event.target.value)} placeholder="Learn more" /></label><label className="field"><span>Second HTTPS link</span><input aria-label="Second HTTPS link" type="url" value={secondLinkUrl} onChange={(event) => setSecondLinkUrl(event.target.value)} placeholder="https://example.com" /></label>
+        <label className="field"><span>Third link label</span><input aria-label="Third link label" value={thirdLinkLabel} maxLength={20} onChange={(event) => setThirdLinkLabel(event.target.value)} placeholder="Book now" /></label><label className="field"><span>Third HTTPS link</span><input aria-label="Third HTTPS link" type="url" value={thirdLinkUrl} onChange={(event) => setThirdLinkUrl(event.target.value)} placeholder="https://example.com/book" /></label>
+        {triggerType === "comment" ? <><label className="check-field wide"><input aria-label="Send an opening DM before revealing" type="checkbox" checked={openingEnabled} onChange={(event) => setOpeningEnabled(event.target.checked)} /><span>Send an opening DM with a postback button before revealing</span></label>{openingEnabled ? <><label className="field wide"><span>Opening DM</span><textarea aria-label="Opening DM" maxLength={640} value={openingMessage} onChange={(event) => setOpeningMessage(event.target.value)} required /></label><label className="field"><span>Opening button</span><input aria-label="Opening button" maxLength={20} value={openingButton} onChange={(event) => setOpeningButton(event.target.value)} required /></label></> : null}</> : null}
+        <label className="check-field wide"><input aria-label="Require account follow before reveal" type="checkbox" checked={followEnabled} onChange={(event) => setFollowEnabled(event.target.checked)} /><span>Require the person to follow the account before reveal</span></label>{followEnabled ? <><label className="field wide"><span>Follow prompt</span><textarea aria-label="Follow prompt" maxLength={640} value={followMessage} onChange={(event) => setFollowMessage(event.target.value)} required /></label><label className="field"><span>Follow-check button</span><input aria-label="Follow-check button" maxLength={20} value={followButton} onChange={(event) => setFollowButton(event.target.value)} required /></label></> : null}
+        <label className="check-field wide"><input aria-label="Send a follow-up" type="checkbox" checked={followUpEnabled} onChange={(event) => setFollowUpEnabled(event.target.checked)} /><span>Send a follow-up after reveal when the 24-hour window permits</span></label>{followUpEnabled ? <><label className="field wide"><span>Follow-up message</span><textarea aria-label="Follow-up message" value={followUpMessage} onChange={(event) => setFollowUpMessage(event.target.value)} required /></label><label className="field"><span>Delay (minutes)</span><input aria-label="Follow-up delay in minutes" type="number" min={0} max={1440} value={followUpDelay} onChange={(event) => setFollowUpDelay(Number(event.target.value))} /></label></> : null}
+        {triggerType === "comment" ? <><label className="check-field"><input aria-label="Also post a public reply" type="checkbox" checked={publicEnabled} onChange={(event) => setPublicEnabled(event.target.checked)} /><span>Also post a public reply</span></label>{publicEnabled ? <label className="field wide"><span>Public reply</span><input aria-label="Public reply" value={publicReply} onChange={(event) => setPublicReply(event.target.value)} placeholder="Sent it to your DMs!" required /></label> : null}</> : null}
+      </div>
+      {error ? <div className="settings-error" role="alert">{error}</div> : null}<div className="settings-actions"><button className="button primary" disabled={busy}>{busy ? "Saving…" : editingId ? "Save changes" : "Create automation"}</button></div>
+    </form> : null}
+    <div className="automation-grid">{automations.map((automation) => {
+      const metric = analytics.find((item) => item.automationId === automation.id);
+      const target = automation.triggerType === "dm" ? "Incoming DM" : automation.pendingNextReel ? "Waiting for next Reel" : automation.matchAnyPost ? "Any post comment" : `Post ${automation.postId}`;
+      const features = [automation.openingDmEnabled ? "opening DM" : "", automation.requireFollow ? "follow gate" : "", automation.trackedLinks.length ? `${automation.trackedLinks.length} tracked link${automation.trackedLinks.length === 1 ? "" : "s"}` : "", automation.followUpEnabled ? "follow-up" : ""].filter(Boolean).join(" · ");
+      return <article className="automation-card" key={automation.id}><header><span><WandSparkles size={17} /></span><div><button type="button" aria-label={`Edit ${automation.name}`} disabled={busy} onClick={() => startEdit(automation)}><SettingsIcon size={15} /></button><button type="button" aria-label={`Delete ${automation.name}`} disabled={busy} onClick={() => void remove(automation.id)}><X size={16} /></button></div></header><div className="automation-title"><i>●</i><h3>{automation.name}</h3></div><p>{target} · {automation.matchAnyText ? "any text" : automation.keywords.join(", ")}{features ? ` · ${features}` : ""}</p><dl><div><dt>Account</dt><dd>@{automation.accountUsername}</dd></div><div><dt>Reveals</dt><dd>{metric?.reveals ?? 0}</dd></div><div><dt>Clicks</dt><dd>{metric?.clicks ?? 0}</dd></div><div><dt>Failures</dt><dd>{metric?.failures ?? 0}</dd></div><div><dt>Status</dt><dd className={automation.active ? "live-status" : "paused-status"}>{automation.active ? "Live" : "Paused"}</dd></div></dl><footer><span>{metric?.runs ?? 0} run{metric?.runs === 1 ? "" : "s"}</span><label><input aria-label={`${automation.active ? "Pause" : "Activate"} ${automation.name}`} type="checkbox" checked={automation.active} disabled={busy} onChange={() => void toggle(automation)} /><span /></label></footer></article>;
+    })}{!automations.length ? <section className="settings-section"><p>No Instagram automations yet.</p></section> : null}</div>
+  </section>;
+}
+
 function ChannelSettingsLoading() {
   return <div className="channel-settings-loading" aria-label="Loading channel settings" aria-busy="true">
     <section className="settings-section"><div className="settings-loading-account"><span /><div><i /><i /></div><em /></div><div className="settings-loading-status"><i /><i /></div></section>
@@ -500,12 +712,13 @@ function OperationsPanel({ onFlash }: { onFlash: (text: string) => void }) {
     finally { setBusyKey(""); }
   }
   if (!operations) return <ChannelSettingsLoading />;
-  const healthy = operations.counts.failedEvents === 0 && operations.counts.failedAiJobs === 0 && operations.counts.failedMessages === 0;
+  const healthy = operations.counts.failedEvents === 0 && operations.counts.failedAiJobs === 0 && operations.counts.failedMessages === 0 && operations.counts.failedAutomations === 0;
   return <div className="operations-stack">
-    <section className="settings-section operations-summary"><header><div><h2>Operations</h2><p>Durable event and AI work that survives restarts.</p></div><button className="button secondary" type="button" onClick={() => void load()}><RefreshCw size={15} />Refresh</button></header><div className="operations-metrics"><span><b>{operations.counts.failedEvents}</b><small>Failed events</small></span><span><b>{operations.counts.failedAiJobs}</b><small>Failed AI jobs</small></span><span><b>{operations.counts.pendingWork}</b><small>Pending work</small></span><span><b>{operations.counts.failedMessages}</b><small>Failed sends</small></span></div><div className={`operations-state ${healthy ? "healthy" : "attention"}`}>{healthy ? <Check size={16} /> : <AlertTriangle size={16} />}<span><b>{healthy ? "No operational failures" : "Attention required"}</b><small>{healthy ? "Inbound processing and AI work are clear." : "Review and retry the failed work below."}</small></span></div></section>
-    <section className="settings-section operations-list"><header><div><h2>Inbound events</h2><p>Telegram updates are retained before processing and can be replayed safely.</p></div></header>{operations.events.length ? operations.events.map((event) => <article key={event.id}><span><b>{event.provider} · {event.externalId}</b><small>{event.lastError || `${event.status} · attempt ${event.attempts}`}</small></span>{event.status === "failed" ? <button className="button secondary" type="button" disabled={Boolean(busyKey)} onClick={() => void retry(`/api/operations/events/${event.id}/retry`, `event-${event.id}`)}>{busyKey === `event-${event.id}` ? "Retrying…" : "Retry"}</button> : <em>{event.status}</em>}</article>) : <p className="operations-empty">No failed or in-progress inbound events.</p>}</section>
+    <section className="settings-section operations-summary"><header><div><h2>Operations</h2><p>Durable inbound, AI, delivery, and automation work that survives restarts.</p></div><button className="button secondary" type="button" onClick={() => void load()}><RefreshCw size={15} />Refresh</button></header><div className="operations-metrics"><span><b>{operations.counts.failedEvents}</b><small>Failed events</small></span><span><b>{operations.counts.failedAiJobs}</b><small>Failed AI jobs</small></span><span><b>{operations.counts.pendingWork + operations.counts.pendingAutomations}</b><small>Pending work</small></span><span><b>{operations.counts.failedMessages + operations.counts.failedAutomations}</b><small>Failed sends</small></span></div><div className={`operations-state ${healthy ? "healthy" : "attention"}`}>{healthy ? <Check size={16} /> : <AlertTriangle size={16} />}<span><b>{healthy ? "No operational failures" : "Attention required"}</b><small>{healthy ? "Inbound processing, AI, and automations are clear." : "Review and retry the failed work below."}</small></span></div></section>
+    <section className="settings-section operations-list"><header><div><h2>Inbound events</h2><p>Channel updates are retained before processing and can be replayed safely.</p></div></header>{operations.events.length ? operations.events.map((event) => <article key={event.id}><span><b>{event.provider} · {event.externalId}</b><small>{event.lastError || `${event.status} · attempt ${event.attempts}`}</small></span>{event.status === "failed" ? <button className="button secondary" type="button" disabled={Boolean(busyKey)} onClick={() => void retry(`/api/operations/events/${event.id}/retry`, `event-${event.id}`)}>{busyKey === `event-${event.id}` ? "Retrying…" : "Retry"}</button> : <em>{event.status}</em>}</article>) : <p className="operations-empty">No failed or in-progress inbound events.</p>}</section>
     <section className="settings-section operations-list"><header><div><h2>AI processing</h2><p>One durable job runs per conversation, with stale replies cancelled before delivery.</p></div></header>{operations.aiJobs.length ? operations.aiJobs.map((job) => <article key={job.conversationId}><span><b>{job.conversationName}</b><small>{job.lastError || `${job.status} · attempt ${job.attempts}`}</small></span>{job.status === "failed" ? <button className="button secondary" type="button" disabled={Boolean(busyKey)} onClick={() => void retry(`/api/operations/ai/${job.conversationId}/retry`, `ai-${job.conversationId}`)}>{busyKey === `ai-${job.conversationId}` ? "Retrying…" : "Retry"}</button> : <em>{job.status}</em>}</article>) : <p className="operations-empty">No failed or pending AI jobs.</p>}</section>
-    <section className="settings-section operations-list"><header><div><h2>Failed sends</h2><p>Check Telegram before resending: a lost provider response can make delivery ambiguous.</p></div></header>{operations.failedMessages.length ? operations.failedMessages.map((message) => <article key={message.id}><span><b>{message.conversationName} · {message.body}</b><small>{message.lastError || `Delivery failed after ${message.attempts} attempt(s)`}</small></span><em>Review in inbox</em></article>) : <p className="operations-empty">No failed outbound messages.</p>}</section>
+    <section className="settings-section operations-list"><header><div><h2>Instagram automations</h2><p>Runs are resumable. A retry skips private or public actions already confirmed as sent.</p></div></header>{operations.automationRuns.length ? operations.automationRuns.map((run) => <article key={run.id}><span><b>@{run.accountUsername} · {run.automationName}</b><small>{run.lastError || `${run.triggerType} for @${run.subjectUsername || "unknown"} · attempt ${run.attempts}`}</small></span>{run.status === "failed" ? <button className="button secondary" type="button" disabled={Boolean(busyKey)} onClick={() => void retry(`/api/operations/instagram-automations/${run.id}/retry`, `automation-${run.id}`)}>{busyKey === `automation-${run.id}` ? "Retrying…" : "Retry"}</button> : <em>{run.status}</em>}</article>) : <p className="operations-empty">No failed or pending Instagram automations.</p>}</section>
+    <section className="settings-section operations-list"><header><div><h2>Failed sends</h2><p>Check the channel before resending: a lost provider response can make delivery ambiguous.</p></div></header>{operations.failedMessages.length ? operations.failedMessages.map((message) => <article key={message.id}><span><b>{message.conversationName} · {message.body}</b><small>{message.lastError || `Delivery failed after ${message.attempts} attempt(s)`}</small></span><em>Review in inbox</em></article>) : <p className="operations-empty">No failed outbound messages.</p>}</section>
   </div>;
 }
 
@@ -519,6 +732,8 @@ function Settings({ runtime, onRuntime, onFlash }: { runtime: Runtime | null; on
   const [manageTelegram, setManageTelegram] = useState(false);
   const [setupSecretary, setSetupSecretary] = useState(false);
   const [telegramError, setTelegramError] = useState("");
+  const [instagram, setInstagram] = useState<InstagramSetup | null>(() => cachedInstagramSetup);
+  const [instagramError, setInstagramError] = useState("");
   const [aiSetup, setAiSetup] = useState<AiSetup | null>(() => cachedAiSetup);
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiModel, setAiModel] = useState("openrouter/auto");
@@ -532,6 +747,7 @@ function Settings({ runtime, onRuntime, onFlash }: { runtime: Runtime | null; on
   useEffect(() => { cachedSettingsTab = tab; }, [tab]);
   useEffect(() => { cachedSettingsValue = settings; }, [settings]);
   useEffect(() => { cachedTelegramSetup = telegram; }, [telegram]);
+  useEffect(() => { cachedInstagramSetup = instagram; }, [instagram]);
   useEffect(() => { cachedAiSetup = aiSetup; }, [aiSetup]);
   const loadTelegram = useCallback(async () => {
     try {
@@ -540,6 +756,13 @@ function Settings({ runtime, onRuntime, onFlash }: { runtime: Runtime | null; on
       setPublicUrl(result.publicUrl ?? "");
       setTelegramError(result.error ?? "");
     } catch (error) { setTelegramError(error instanceof Error ? error.message : "Could not check Telegram"); }
+  }, []);
+  const loadInstagram = useCallback(async () => {
+    try {
+      const result = await api<InstagramSetup>("/api/setup/instagram");
+      setInstagram(result);
+      setInstagramError("");
+    } catch (error) { setInstagramError(error instanceof Error ? error.message : "Could not check Instagram"); }
   }, []);
   useEffect(() => {
     api<{ settings: SettingsValue; runtime: Runtime }>("/api/settings")
@@ -556,6 +779,22 @@ function Settings({ runtime, onRuntime, onFlash }: { runtime: Runtime | null; on
       })
       .catch((error) => setAiError(error instanceof Error ? error.message : "Could not check the AI provider"));
   }, [onFlash, onRuntime]);
+  useEffect(() => {
+    const initial = window.setTimeout(() => void loadInstagram(), 0);
+    const params = new URLSearchParams(window.location.search);
+    const instagramResult = params.get("instagram");
+    if (instagramResult) {
+      const reason = params.get("reason");
+      if (instagramResult === "connected") onFlash("Instagram connected");
+      else if (instagramResult === "connected_attention") onFlash("Instagram connected, but its webhook subscription needs attention");
+      else if (instagramResult === "denied") onFlash("Instagram connection was cancelled");
+      else onFlash(reason || "Instagram could not be connected");
+      params.delete("instagram");
+      params.delete("reason");
+      window.history.replaceState({}, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
+    }
+    return () => window.clearTimeout(initial);
+  }, [loadInstagram, onFlash]);
   useEffect(() => {
     const initial = window.setTimeout(() => void loadTelegram(), 0);
     const timer = window.setInterval(() => void loadTelegram(), 8_000);
@@ -597,6 +836,39 @@ function Settings({ runtime, onRuntime, onFlash }: { runtime: Runtime | null; on
       onRuntime({ ...(runtime ?? { database: true, ai: { configured: false, provider: "none", model: "" }, telegram: { configured: false } }), telegram: { configured: result.configured } });
       onFlash("Telegram disconnected");
     } catch (error) { setTelegramError(error instanceof Error ? error.message : "Could not disconnect Telegram"); }
+    finally { setBusy(false); }
+  }
+
+  async function connectInstagram() {
+    setBusy(true);
+    setInstagramError("");
+    try {
+      const result = await api<{ authorizationUrl: string }>("/api/setup/instagram/connect", { method: "POST" });
+      window.location.assign(result.authorizationUrl);
+    } catch (error) {
+      setInstagramError(error instanceof Error ? error.message : "Instagram setup failed");
+      setBusy(false);
+    }
+  }
+
+  async function disconnectInstagram(accountId: number) {
+    setBusy(true);
+    setInstagramError("");
+    try {
+      await api(`/api/setup/instagram/${accountId}`, { method: "DELETE" });
+      await loadInstagram();
+      onFlash("Instagram account disconnected");
+    } catch (error) { setInstagramError(error instanceof Error ? error.message : "Could not disconnect Instagram"); }
+    finally { setBusy(false); }
+  }
+
+  async function syncInstagram(accountId: number) {
+    setBusy(true);
+    setInstagramError("");
+    try {
+      await api(`/api/setup/instagram/${accountId}/sync`, { method: "POST" });
+      onFlash("Instagram conversation sync started");
+    } catch (error) { setInstagramError(error instanceof Error ? error.message : "Could not sync Instagram conversations"); }
     finally { setBusy(false); }
   }
 
@@ -676,7 +948,16 @@ function Settings({ runtime, onRuntime, onFlash }: { runtime: Runtime | null; on
       <details className="connection-details"><summary><span><b>Connection settings</b><small>Webhook URL, token rotation, and disconnect</small></span><ChevronRight size={17} /></summary><div className="connection-details-body">{connectionForm}</div></details>
     </> : <><header><div><h2>Connect Telegram</h2><p>Paste the token from @BotFather. OpenChat validates it before storing anything.</p></div><span className="connection-state"><i />{telegram?.configured ? "Needs attention" : "Not connected"}</span></header>{connectionForm}</>}
     </section>
-    <section className="settings-section"><div className="connected-channel"><span className="logo-box"><ChannelLogo channel="instagram" size={28} /></span><span><b>Instagram</b><small>Planned after the Telegram-first v0.1 release</small></span><em><i className="not-ready" />Not included</em></div></section>
+    <section className="settings-section instagram-section">
+      <header><div><h2>Instagram</h2><p>Connect professional accounts through Meta&apos;s official Instagram Login.</p></div>{instagram?.appConfigured ? <button className="button primary" type="button" disabled={busy} onClick={() => void connectInstagram()}>{busy ? "Opening…" : instagram.accounts.length ? "Add account" : "Connect Instagram"}</button> : null}</header>
+      {instagram === null ? <p>Checking Instagram configuration…</p> : <>
+        {instagram.accounts.map((account) => <div className="connected-channel" key={account.id}><span className="logo-box"><ChannelLogo channel="instagram" size={28} /></span><span><b>@{account.username}</b><small>{account.displayName || "Instagram professional account"}{account.tokenExpiresAt ? ` · token expires ${new Date(account.tokenExpiresAt).toLocaleDateString()}` : ""}</small></span><em><i className={account.webhookSubscribed && !account.lastError ? "" : "not-ready"} />{account.webhookSubscribed && !account.lastError ? "Connected" : "Needs attention"}</em><div className="channel-actions"><button type="button" disabled={busy} onClick={() => void syncInstagram(account.id)}>Sync</button><button className="disconnect-button" type="button" disabled={busy} onClick={() => void disconnectInstagram(account.id)}>Disconnect</button></div>{account.lastError ? <div className="settings-error" role="alert">{account.lastError}</div> : null}</div>)}
+        {!instagram.accounts.length && instagram.appConfigured ? <div className="provider-notice"><ShieldCheck size={16} /><span>No Instagram account is connected yet. Tokens are encrypted before they are stored.</span></div> : null}
+        {!instagram.appConfigured ? <div className="settings-error" role="alert">Add the Instagram app ID, app secret, and webhook verify token to this installation before connecting an account.</div> : null}
+        <details className="connection-details"><summary><span><b>Meta configuration URLs</b><small>Register these exact addresses in the Meta App Dashboard</small></span><ChevronRight size={17} /></summary><div className="connection-details-body"><label className="field wide"><span>OAuth callback</span><input readOnly value={instagram.callbackUrl} /></label><label className="field wide"><span>Webhook callback</span><input readOnly value={instagram.webhookUrl} /></label></div></details>
+      </>}
+      {instagramError ? <div className="settings-error" role="alert">{instagramError}</div> : null}
+    </section>
   </> : tab === "ai" ? <>
     <AssistantTester settings={settings} configured={Boolean(runtime?.ai.configured)} model={aiSetup?.provider === "openrouter" ? aiSetup.model : runtime?.ai.model ?? ""} />
     <div className="ai-builder-panel">

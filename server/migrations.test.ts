@@ -29,6 +29,9 @@ describe("D1 migrations", () => {
       "0001_telegram_business.sql",
       "0002_telegram_media_replies.sql",
       "0003_release_readiness.sql",
+      "0004_instagram_foundation.sql",
+      "0005_instagram_automations.sql",
+      "0006_instagram_campaigns.sql",
     ]);
 
     for (const file of files) {
@@ -41,7 +44,7 @@ describe("D1 migrations", () => {
     const { results: eventColumns } = await database.prepare("PRAGMA table_info(channel_events)").all<{ name: string }>();
     expect(eventColumns.map((column) => column.name)).toEqual(expect.arrayContaining(["status", "attempts", "claimed_at", "processed_at", "last_error", "conversation_id"]));
     const { results: tables } = await database.prepare("SELECT name FROM sqlite_schema WHERE type = 'table'").all<{ name: string }>();
-    expect(tables.map((table) => table.name)).toEqual(expect.arrayContaining(["ai_jobs", "auth_failures", "telegram_business_connections"]));
+    expect(tables.map((table) => table.name)).toEqual(expect.arrayContaining(["ai_jobs", "auth_failures", "telegram_business_connections", "instagram_tracked_links", "instagram_link_clicks"]));
     const { results: indexes } = await database.prepare("SELECT name FROM sqlite_schema WHERE type = 'index'").all<{ name: string }>();
     expect(indexes.map((index) => index.name)).toEqual(expect.arrayContaining(["idx_channel_events_status_received", "idx_ai_jobs_status_updated", "idx_messages_delivery_status"]));
   });

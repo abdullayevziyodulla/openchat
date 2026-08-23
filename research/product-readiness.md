@@ -1,6 +1,6 @@
 # OpenChat product-readiness research
 
-_Checked 2026-08-15 against the repository and current first-party platform documentation. The landing page is intentionally out of scope._
+_Originally checked 2026-08-15. The implementation-status snapshot below is historical; the Telegram-first v0.1 work and Instagram v0.2 foundation were added afterward. Platform constraints and the broader roadmap remain relevant._
 
 ## Bottom line
 

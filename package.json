@@ -1,16 +1,16 @@
 {
   "name": "openchat",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
-    "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
-    "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "test": "vitest run --config vitest.config.ts && npm run build",
-    "test:unit": "vitest run --config vitest.config.ts",
+    "dev": "vinext dev",
+    "build": "vinext build",
+    "start": "vinext start",
+    "test": "npm run test:unit && npm run build",
+    "test:unit": "vitest run --config vitest.config.ts --exclude server/openchat.test.ts --exclude server/database.test.ts --exclude server/migrations.test.ts && vitest run server/database.test.ts --config vitest.config.ts && vitest run server/openchat.test.ts --config vitest.config.ts && vitest run server/migrations.test.ts --config vitest.config.ts",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit",
     "check:public": "node scripts/check-public-release.mjs",

@@ -19,12 +19,12 @@ Use this guide before publishing a fork, transferring the project, or creating a
 3. Deploy first, then add secrets through the hosting provider. Do not place secrets in `.openai/hosting.json` or tracked source files.
 4. Sign in and connect a bot created for this installation. Do not reuse a personal or staging bot in a public deployment.
 5. Replace the Privacy and Terms pages with notices appropriate for the installation and its jurisdiction.
-6. Complete `docs/v0.1-release-checklist.md` before tagging or announcing the release.
+6. Complete `docs/v0.2-release-checklist.md` before tagging or announcing the release.
 
 ## Removing an old installation
 
-1. Disable or delete the Telegram webhook before discarding the bot token.
-2. Rotate or revoke the Telegram and AI credentials.
-3. Delete the hosted environment variables and database, following the hosting provider's retention controls.
+1. Disable or delete the Telegram webhook and disconnect Instagram subscriptions before discarding provider credentials.
+2. Rotate or revoke the Telegram, Meta, Instagram, and AI credentials.
+3. Delete the hosted environment variables, D1 database, and R2 media bucket, following the hosting provider's retention controls.
 4. Remove local `.env.local`, `.wrangler/`, build output, logs, screenshots, and exported database files.
 5. Verify that backups, deployment snapshots, and Git history do not retain data that must be deleted.

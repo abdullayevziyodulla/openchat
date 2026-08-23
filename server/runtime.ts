@@ -22,9 +22,22 @@ export interface AssetFetcher {
   fetch(request: Request): Promise<Response>;
 }
 
+export interface R2ObjectBody {
+  body: ReadableStream;
+  httpMetadata?: { contentType?: string };
+  customMetadata?: Record<string, string>;
+}
+
+export interface R2Bucket {
+  put(key: string, value: ReadableStream | ArrayBuffer, options?: { httpMetadata?: { contentType?: string }; customMetadata?: Record<string, string> }): Promise<unknown>;
+  get(key: string): Promise<R2ObjectBody | null>;
+  delete(key: string): Promise<void>;
+}
+
 export interface OpenChatEnv {
   DB: D1Database;
   ASSETS: AssetFetcher;
+  MEDIA?: R2Bucket;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -38,6 +51,12 @@ export interface OpenChatEnv {
   OPENCHAT_TRUST_PLATFORM_AUTH?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
+  INSTAGRAM_APP_ID?: string;
+  INSTAGRAM_APP_SECRET?: string;
+  FACEBOOK_APP_SECRET?: string;
+  INSTAGRAM_WEBHOOK_VERIFY_TOKEN?: string;
+  META_GRAPH_API_VERSION?: string;
+  INSTAGRAM_HUMAN_AGENT_ENABLED?: string;
   OPENAI_API_KEY?: string;
   OPENAI_BASE_URL?: string;
   OPENAI_MODEL?: string;

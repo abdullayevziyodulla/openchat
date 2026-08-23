@@ -13,6 +13,12 @@ const runtimeVariableNames = [
   "OPENCHAT_TRUST_PLATFORM_AUTH",
   "TELEGRAM_BOT_TOKEN",
   "TELEGRAM_WEBHOOK_SECRET",
+  "INSTAGRAM_APP_ID",
+  "INSTAGRAM_APP_SECRET",
+  "FACEBOOK_APP_SECRET",
+  "INSTAGRAM_WEBHOOK_VERIFY_TOKEN",
+  "META_GRAPH_API_VERSION",
+  "INSTAGRAM_HUMAN_AGENT_ENABLED",
   "OPENAI_API_KEY",
   "OPENAI_BASE_URL",
   "OPENAI_MODEL",
@@ -26,12 +32,14 @@ export default defineConfig(async ({ mode }) => {
   const localRuntimeVariables = Object.fromEntries(runtimeVariableNames.flatMap((name) => loadedEnvironment[name] ? [[name, loadedEnvironment[name]]] : []));
   const d1DatabaseId = loadedEnvironment.OPENCHAT_D1_DATABASE_ID || SITE_CREATOR_PLACEHOLDER_DATABASE_ID;
   const d1DatabaseName = loadedEnvironment.OPENCHAT_D1_DATABASE_NAME || "openchat";
+  const mediaBucketName = loadedEnvironment.OPENCHAT_R2_BUCKET_NAME || "openchat-media";
   const localBindingConfig = {
     main: "./worker/index.ts",
     compatibility_flags: ["nodejs_compat"],
     vars: mode === "development" ? localRuntimeVariables : {},
+    triggers: { crons: ["*/5 * * * *", "0 3 * * *"] },
     d1_databases: d1 ? [{ binding: d1, database_name: d1DatabaseName, database_id: d1DatabaseId }] : [],
-    r2_buckets: r2 ? [{ binding: r2, bucket_name: "site-creator-r2" }] : [],
+    r2_buckets: r2 ? [{ binding: r2, bucket_name: mediaBucketName }] : [],
   };
   const { cloudflare } = await import("@cloudflare/vite-plugin");
   return {

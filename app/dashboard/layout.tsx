@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./dashboard.css";
 
-const title = "OpenChat Dashboard — Self-hosted Telegram inbox";
-const description = "Manage real Telegram conversations, AI replies, contacts, and human takeover from your self-hosted OpenChat instance.";
+const title = "OpenChat Dashboard — Instagram and Telegram inbox";
+const description = "Manage Instagram and Telegram conversations, automations, AI replies, contacts, and human takeover from your self-hosted OpenChat instance.";
 
 export async function generateMetadata(): Promise<Metadata> {
   const incoming = await headers();

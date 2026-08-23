@@ -8,6 +8,8 @@ export type ConversationChannel = "telegram" | "telegram_business" | "instagram"
 export interface MessageAttachment {
   type: "photo" | "document" | "video" | "video_note" | "audio" | "voice" | "animation" | "sticker";
   fileId?: string;
+  url?: string;
+  providerMediaId?: string;
   fileName?: string;
   mimeType?: string;
   fileSize?: number;
@@ -30,6 +32,26 @@ export interface TelegramInbound {
   replyToProviderMessageId?: string;
   timestamp: number;
   payload: string;
+}
+
+export interface ChannelInbound {
+  channel: ConversationChannel;
+  eventId: string;
+  externalMessageId: string;
+  externalConversationId: string;
+  externalContactId: string;
+  displayName: string;
+  username?: string;
+  text: string;
+  attachment?: MessageAttachment;
+  replyToExternalMessageId?: string;
+  timestamp: number;
+  payload: string;
+  telegramBusinessConnectionId?: string;
+  instagramAccountId?: number;
+  instagramRecipientIgsid?: string;
+  instagramThreadId?: string;
+  messagingWindowUntil?: number;
 }
 
 export interface InboxConversation {
@@ -88,12 +110,150 @@ export interface TelegramBusinessConnection {
   updatedAt: number;
 }
 
+export interface InstagramAccount {
+  id: number;
+  instagramUserId: string;
+  appScopedUserId: string | null;
+  username: string;
+  displayName: string | null;
+  profilePictureUrl: string | null;
+  encryptedAccessToken: string;
+  tokenExpiresAt: number | null;
+  scopes: string[];
+  webhookSubscribed: boolean;
+  connectedAt: number;
+  updatedAt: number;
+  lastError: string | null;
+}
+
+export interface InstagramConversationContext {
+  instagramAccountId: number;
+  instagramUserId: string;
+  recipientIgsid: string;
+  threadId: string | null;
+  lastInboundAt: number;
+  messagingWindowUntil: number;
+}
+
+export interface InstagramHistoryMessage {
+  externalMessageId: string;
+  author: "customer" | "human";
+  text: string;
+  attachment?: MessageAttachment;
+  timestamp: number;
+}
+
+export interface InstagramAutomation {
+  id: number;
+  instagramAccountId: number;
+  accountUsername: string;
+  name: string;
+  triggerType: "comment" | "dm";
+  postId: string | null;
+  matchAnyPost: boolean;
+  matchAnyText: boolean;
+  keywords: string[];
+  wholeWordMatch: boolean;
+  privateReplyMessage: string;
+  openingDmEnabled: boolean;
+  openingDmMessage: string | null;
+  openingDmButtonLabel: string | null;
+  linkButtonLabel: string | null;
+  requireFollow: boolean;
+  followPromptMessage: string | null;
+  followPromptButtonLabel: string | null;
+  followUpEnabled: boolean;
+  followUpMessage: string | null;
+  followUpDelayMinutes: number;
+  pendingNextReel: boolean;
+  publicReplyEnabled: boolean;
+  publicReplyMessage: string | null;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+  trackedLinks: InstagramTrackedLink[];
+}
+
+export interface InstagramTrackedLink {
+  id: number;
+  automationId: number;
+  slug: string;
+  label: string;
+  destinationUrl: string;
+  position: number;
+}
+
+export interface InstagramAutomationInput {
+  instagramAccountId: number;
+  name: string;
+  triggerType?: "comment" | "dm";
+  postId?: string | null;
+  matchAnyPost?: boolean;
+  matchAnyText?: boolean;
+  keywords?: string[];
+  wholeWordMatch?: boolean;
+  privateReplyMessage: string;
+  openingDmEnabled?: boolean;
+  openingDmMessage?: string | null;
+  openingDmButtonLabel?: string | null;
+  linkButtonLabel?: string | null;
+  requireFollow?: boolean;
+  followPromptMessage?: string | null;
+  followPromptButtonLabel?: string | null;
+  followUpEnabled?: boolean;
+  followUpMessage?: string | null;
+  followUpDelayMinutes?: number;
+  pendingNextReel?: boolean;
+  trackedLinks?: Array<{ label: string; destinationUrl: string }>;
+  publicReplyEnabled?: boolean;
+  publicReplyMessage?: string | null;
+  active?: boolean;
+}
+
+export interface InstagramAutomationRunClaim {
+  id: number;
+  automationId: number;
+  instagramAccountId: number;
+  instagramUserId: string;
+  encryptedAccessToken: string;
+  triggerType: "comment" | "dm";
+  triggerExternalId: string;
+  subjectIgsid: string;
+  subjectUsername: string | null;
+  attempts: number;
+  privateReplyMessage: string;
+  openingDmEnabled: boolean;
+  openingDmMessage: string | null;
+  openingDmButtonLabel: string | null;
+  linkButtonLabel: string | null;
+  requireFollow: boolean;
+  followPromptMessage: string | null;
+  followPromptButtonLabel: string | null;
+  followUpEnabled: boolean;
+  followUpMessage: string | null;
+  followUpDelayMinutes: number;
+  publicReplyEnabled: boolean;
+  publicReplyMessage: string | null;
+  privateReplySentAt: number | null;
+  publicReplySentAt: number | null;
+  revealSentAt: number | null;
+  followUpScheduledAt: number | null;
+  followUpSentAt: number | null;
+  lastInteractionAt: number | null;
+  trackedLinks: InstagramTrackedLink[];
+  leaseToken: string;
+}
+
 export interface OutboundMessage {
   id: number;
   conversationId: number;
   externalChatId: string;
   channel: ConversationChannel;
   businessConnectionId: string | null;
+  instagramAccountId: number | null;
+  instagramRecipientIgsid: string | null;
+  instagramLastInboundAt: number | null;
+  instagramMessagingWindowUntil: number | null;
   author: "ai" | "human";
   body: string;
   attachment: MessageAttachment | null;
@@ -133,7 +293,20 @@ export interface OperationsSnapshot {
     lastError: string | null;
     createdAt: number;
   }[];
-  counts: { failedEvents: number; failedAiJobs: number; pendingWork: number; failedMessages: number };
+  automationRuns: {
+    id: number;
+    automationName: string;
+    accountUsername: string;
+    triggerType: "comment" | "dm";
+    subjectUsername: string | null;
+    status: "pending" | "processing" | "failed";
+    attempts: number;
+    privateReplySentAt: number | null;
+    publicReplySentAt: number | null;
+    lastError: string | null;
+    updatedAt: number;
+  }[];
+  counts: { failedEvents: number; failedAiJobs: number; pendingWork: number; failedMessages: number; failedAutomations: number; pendingAutomations: number };
 }
 
 let initializedDatabase: D1Database | undefined;
@@ -153,6 +326,7 @@ async function reconcileStaleWork(db: D1Database) {
   await db.prepare("UPDATE conversations SET delivery_lock_message_id = NULL, delivery_lock_author = NULL, delivery_lock_until = NULL WHERE COALESCE(delivery_lock_until, 0) > 0 AND delivery_lock_until <= ?").bind(now).run();
   await db.prepare("UPDATE channel_events SET status = 'failed', claimed_at = NULL, last_error = COALESCE(last_error, 'Processing lease expired before the event completed.') WHERE status = 'processing' AND COALESCE(claimed_at, 0) <= ?").bind(stale).run();
   await db.prepare("UPDATE ai_jobs SET status = 'failed', lease_token = NULL, lease_until = NULL, last_error = COALESCE(last_error, 'AI processing lease expired before completion.'), updated_at = ? WHERE status = 'processing' AND COALESCE(lease_until, 0) <= ?").bind(now, now).run();
+  await db.prepare("UPDATE instagram_automation_runs SET status = 'failed', lease_token = NULL, lease_until = NULL, last_error = COALESCE(last_error, 'Automation delivery was interrupted; review before retrying to avoid a duplicate reply.'), updated_at = ? WHERE status = 'processing' AND COALESCE(lease_until, 0) <= ?").bind(now, now).run();
   await db.prepare("UPDATE messages SET delivery_status = 'failed', delivery_error = COALESCE(delivery_error, 'Delivery was interrupted. Check Telegram before sending again.') WHERE delivery_status = 'pending' AND created_at <= ?").bind(stale).run();
 }
 
@@ -192,6 +366,10 @@ async function initialize(db: D1Database) {
 
 function rowChanges(result: { meta?: { changes?: number } }) {
   return result.meta?.changes ?? 0;
+}
+
+function randomSlug() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(9)), (byte) => byte.toString(36).padStart(2, "0")).join("").slice(0, 12);
 }
 
 export class OpenChatStore {
@@ -244,10 +422,10 @@ export class OpenChatStore {
     await this.db.prepare("UPDATE conversations SET unread_count = 0, updated_at = ? WHERE id = ?").bind(Date.now(), conversationId).run();
   }
 
-  async recordTelegramInbound(input: TelegramInbound) {
+  async recordInbound(input: ChannelInbound) {
     await this.ready();
     const receivedAt = Date.now();
-    const channel = input.channel ?? "telegram";
+    const channel = input.channel;
     const claim = await this.db.prepare(`
       INSERT INTO channel_events(provider, external_id, payload, received_at, status, attempts, claimed_at)
       VALUES(?, ?, ?, ?, 'processing', 1, ?)
@@ -260,10 +438,10 @@ export class OpenChatStore {
       WHERE channel_events.status = 'failed'
         OR (channel_events.status = 'processing' AND COALESCE(channel_events.claimed_at, 0) < ?)
       RETURNING id
-    `).bind(channel, input.updateId, input.payload, receivedAt, receivedAt, receivedAt - 60_000).first<{ id: number }>();
+    `).bind(channel, input.eventId, input.payload, receivedAt, receivedAt, receivedAt - 60_000).first<{ id: number }>();
     if (!claim) {
       const existing = await this.db.prepare("SELECT status, conversation_id AS conversationId FROM channel_events WHERE provider = ? AND external_id = ?")
-        .bind(channel, input.updateId).first<{ status: "processing" | "processed" | "failed" | "ignored"; conversationId: number | null }>();
+        .bind(channel, input.eventId).first<{ status: "processing" | "processed" | "failed" | "ignored"; conversationId: number | null }>();
       return { inserted: false as const, status: existing?.status ?? "processing", conversationId: existing?.conversationId ?? undefined };
     }
 
@@ -275,8 +453,8 @@ export class OpenChatStore {
           display_name = excluded.display_name,
           username = excluded.username,
           updated_at = excluded.updated_at
-      `).bind(channel, input.senderId, input.displayName, input.username ?? null, receivedAt, receivedAt).run();
-      const contact = await this.db.prepare("SELECT id FROM contacts WHERE channel = ? AND external_id = ?").bind(channel, input.senderId).first<{ id: number }>();
+      `).bind(channel, input.externalContactId, input.displayName, input.username ?? null, receivedAt, receivedAt).run();
+      const contact = await this.db.prepare("SELECT id FROM contacts WHERE channel = ? AND external_id = ?").bind(channel, input.externalContactId).first<{ id: number }>();
       if (!contact) throw new Error("Contact upsert failed");
 
       await this.db.prepare(`
@@ -286,24 +464,40 @@ export class OpenChatStore {
           contact_id = excluded.contact_id,
           last_message_at = MAX(conversations.last_message_at, excluded.last_message_at),
           updated_at = excluded.updated_at
-      `).bind(contact.id, channel, input.chatId, input.timestamp, receivedAt, receivedAt).run();
-      const conversation = await this.db.prepare("SELECT id, mode FROM conversations WHERE channel = ? AND external_chat_id = ?").bind(channel, input.chatId).first<{ id: number; mode: ConversationMode }>();
+      `).bind(contact.id, channel, input.externalConversationId, input.timestamp, receivedAt, receivedAt).run();
+      const conversation = await this.db.prepare("SELECT id, mode FROM conversations WHERE channel = ? AND external_chat_id = ?").bind(channel, input.externalConversationId).first<{ id: number; mode: ConversationMode }>();
       if (!conversation) throw new Error("Conversation upsert failed");
       if (channel === "telegram_business") {
-        if (!input.businessConnectionId) throw new Error("Telegram Business message is missing its connection id");
+        if (!input.telegramBusinessConnectionId) throw new Error("Telegram Business message is missing its connection id");
         await this.db.prepare(`
           INSERT INTO telegram_business_conversations(conversation_id, business_connection_id, updated_at)
           VALUES(?, ?, ?)
           ON CONFLICT(conversation_id) DO UPDATE SET
             business_connection_id = excluded.business_connection_id,
             updated_at = excluded.updated_at
-        `).bind(conversation.id, input.businessConnectionId, receivedAt).run();
+        `).bind(conversation.id, input.telegramBusinessConnectionId, receivedAt).run();
+      }
+      if (channel === "instagram") {
+        if (!input.instagramAccountId || !input.instagramRecipientIgsid) throw new Error("Instagram message is missing its account context");
+        const windowUntil = input.messagingWindowUntil ?? input.timestamp + 24 * 60 * 60_000;
+        await this.db.prepare(`
+          INSERT INTO instagram_conversations(conversation_id, instagram_account_id, recipient_igsid, thread_id, last_inbound_at, messaging_window_until, updated_at)
+          VALUES(?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(conversation_id) DO UPDATE SET
+            instagram_account_id = excluded.instagram_account_id,
+            recipient_igsid = excluded.recipient_igsid,
+            thread_id = COALESCE(excluded.thread_id, instagram_conversations.thread_id),
+            last_inbound_at = MAX(instagram_conversations.last_inbound_at, excluded.last_inbound_at),
+            messaging_window_until = MAX(instagram_conversations.messaging_window_until, excluded.messaging_window_until),
+            updated_at = excluded.updated_at
+        `).bind(conversation.id, input.instagramAccountId, input.instagramRecipientIgsid, input.instagramThreadId ?? null, input.timestamp, windowUntil, receivedAt).run();
       }
 
-      const replyCandidates = input.replyToProviderMessageId ? [
-        `${input.chatId}:${input.replyToProviderMessageId}`,
-        `telegram:${input.chatId}:${input.replyToProviderMessageId}`,
-        ...(input.businessConnectionId ? [`${input.businessConnectionId}:${input.chatId}:${input.replyToProviderMessageId}`] : []),
+      const replyCandidates = input.replyToExternalMessageId ? [
+        input.replyToExternalMessageId,
+        `${input.externalConversationId}:${input.replyToExternalMessageId}`,
+        `${channel}:${input.externalConversationId}:${input.replyToExternalMessageId}`,
+        ...(input.telegramBusinessConnectionId ? [`${input.telegramBusinessConnectionId}:${input.externalConversationId}:${input.replyToExternalMessageId}`] : []),
       ] : [];
       let replyToMessageId: number | null = null;
       if (replyCandidates.length) {
@@ -316,13 +510,13 @@ export class OpenChatStore {
         INSERT INTO messages(conversation_id, external_id, direction, author, body, attachment_json, reply_to_message_id, delivery_status, provider_timestamp, created_at)
         VALUES(?, ?, 'inbound', 'customer', ?, ?, ?, 'received', ?, ?)
         ON CONFLICT(conversation_id, external_id) DO NOTHING
-      `).bind(conversation.id, input.messageId, input.text, input.attachment ? JSON.stringify(input.attachment) : null, replyToMessageId, input.timestamp, receivedAt).run();
+      `).bind(conversation.id, input.externalMessageId, input.text, input.attachment ? JSON.stringify(input.attachment) : null, replyToMessageId, input.timestamp, receivedAt).run();
       if (rowChanges(inserted) > 0) {
         await this.db.prepare("UPDATE conversations SET unread_count = unread_count + 1, last_message_at = MAX(last_message_at, ?), updated_at = ? WHERE id = ?")
           .bind(input.timestamp, receivedAt, conversation.id).run();
       }
       const message = await this.db.prepare("SELECT id FROM messages WHERE conversation_id = ? AND external_id = ?")
-        .bind(conversation.id, input.messageId).first<{ id: number }>();
+        .bind(conversation.id, input.externalMessageId).first<{ id: number }>();
       if (!message) throw new Error("Message persistence failed");
       await this.db.prepare(`
         INSERT INTO ai_jobs(conversation_id, target_message_id, status, attempts, updated_at)
@@ -349,6 +543,92 @@ export class OpenChatStore {
     }
   }
 
+  async recordTelegramInbound(input: TelegramInbound) {
+    const channel = input.channel ?? "telegram";
+    return this.recordInbound({
+      channel,
+      eventId: input.updateId,
+      externalMessageId: input.messageId,
+      externalConversationId: input.chatId,
+      externalContactId: input.senderId,
+      displayName: input.displayName,
+      username: input.username,
+      text: input.text,
+      attachment: input.attachment,
+      replyToExternalMessageId: input.replyToProviderMessageId,
+      timestamp: input.timestamp,
+      payload: input.payload,
+      telegramBusinessConnectionId: input.businessConnectionId,
+    });
+  }
+
+  async syncInstagramConversation(input: {
+    instagramAccountId: number;
+    instagramUserId: string;
+    recipientIgsid: string;
+    threadId?: string;
+    displayName?: string;
+    username?: string;
+    messages: InstagramHistoryMessage[];
+  }) {
+    await this.ready();
+    if (!input.messages.length) return null;
+    const now = Date.now();
+    const externalId = `${input.instagramUserId}:${input.recipientIgsid}`;
+    const lastMessageAt = Math.max(...input.messages.map((message) => message.timestamp));
+    const inboundTimes = input.messages.filter((message) => message.author === "customer").map((message) => message.timestamp);
+    const lastInboundAt = inboundTimes.length ? Math.max(...inboundTimes) : 0;
+    await this.db.prepare(`
+      INSERT INTO contacts(channel, external_id, display_name, username, created_at, updated_at)
+      VALUES('instagram', ?, ?, ?, ?, ?)
+      ON CONFLICT(channel, external_id) DO UPDATE SET
+        display_name = CASE WHEN excluded.display_name LIKE 'Instagram user %' THEN contacts.display_name ELSE excluded.display_name END,
+        username = COALESCE(excluded.username, contacts.username),
+        updated_at = excluded.updated_at
+    `).bind(externalId, input.displayName?.trim() || `Instagram user ${input.recipientIgsid.slice(-6)}`, input.username ?? null, now, now).run();
+    const contact = await this.db.prepare("SELECT id FROM contacts WHERE channel = 'instagram' AND external_id = ?")
+      .bind(externalId).first<{ id: number }>();
+    if (!contact) throw new Error("Instagram contact sync failed");
+    await this.db.prepare(`
+      INSERT INTO conversations(contact_id, channel, external_chat_id, last_message_at, created_at, updated_at)
+      VALUES(?, 'instagram', ?, ?, ?, ?)
+      ON CONFLICT(channel, external_chat_id) DO UPDATE SET
+        contact_id = excluded.contact_id,
+        last_message_at = MAX(conversations.last_message_at, excluded.last_message_at),
+        updated_at = excluded.updated_at
+    `).bind(contact.id, externalId, lastMessageAt, now, now).run();
+    const conversation = await this.db.prepare("SELECT id FROM conversations WHERE channel = 'instagram' AND external_chat_id = ?")
+      .bind(externalId).first<{ id: number }>();
+    if (!conversation) throw new Error("Instagram conversation sync failed");
+    await this.db.prepare(`
+      INSERT INTO instagram_conversations(conversation_id, instagram_account_id, recipient_igsid, thread_id, last_inbound_at, messaging_window_until, updated_at)
+      VALUES(?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(conversation_id) DO UPDATE SET
+        instagram_account_id = excluded.instagram_account_id,
+        recipient_igsid = excluded.recipient_igsid,
+        thread_id = COALESCE(excluded.thread_id, instagram_conversations.thread_id),
+        last_inbound_at = MAX(instagram_conversations.last_inbound_at, excluded.last_inbound_at),
+        messaging_window_until = MAX(instagram_conversations.messaging_window_until, excluded.messaging_window_until),
+        updated_at = excluded.updated_at
+    `).bind(conversation.id, input.instagramAccountId, input.recipientIgsid, input.threadId ?? null, lastInboundAt, lastInboundAt ? lastInboundAt + 24 * 60 * 60_000 : 0, now).run();
+    await this.db.batch(input.messages.map((message) => this.db.prepare(`
+      INSERT INTO messages(conversation_id, external_id, direction, author, body, attachment_json, delivery_status, provider_timestamp, created_at)
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(conversation_id, external_id) DO NOTHING
+    `).bind(
+      conversation.id,
+      message.externalMessageId,
+      message.author === "customer" ? "inbound" : "outbound",
+      message.author,
+      message.text,
+      message.attachment ? JSON.stringify(message.attachment) : null,
+      message.author === "customer" ? "received" : "sent",
+      message.timestamp,
+      now,
+    )));
+    return conversation.id;
+  }
+
   async setMode(conversationId: number, mode: ConversationMode) {
     await this.ready();
     const now = Date.now();
@@ -365,6 +645,12 @@ export class OpenChatStore {
   async getMode(conversationId: number) {
     await this.ready();
     return this.db.prepare("SELECT mode FROM conversations WHERE id = ?").bind(conversationId).first<{ mode: ConversationMode }>();
+  }
+
+  async getConversationChannel(conversationId: number) {
+    await this.ready();
+    return this.db.prepare("SELECT channel FROM conversations WHERE id = ?")
+      .bind(conversationId).first<{ channel: ConversationChannel }>();
   }
 
   async claimDelivery(message: Pick<OutboundMessage, "id" | "conversationId" | "author">, aiJob?: AiJobClaim) {
@@ -470,10 +756,14 @@ export class OpenChatStore {
     return this.db.prepare(`
       SELECT m.id, m.conversation_id AS conversationId, c.external_chat_id AS externalChatId,
         c.channel, m.author, m.body, m.attachment_json AS attachmentJson,
-        replied.external_id AS replyToExternalId, tbc.business_connection_id AS businessConnectionId
+        replied.external_id AS replyToExternalId, tbc.business_connection_id AS businessConnectionId,
+        ic.instagram_account_id AS instagramAccountId, ic.recipient_igsid AS instagramRecipientIgsid,
+        ic.last_inbound_at AS instagramLastInboundAt,
+        ic.messaging_window_until AS instagramMessagingWindowUntil
       FROM messages m JOIN conversations c ON c.id = m.conversation_id
       LEFT JOIN messages replied ON replied.id = m.reply_to_message_id
       LEFT JOIN telegram_business_conversations tbc ON tbc.conversation_id = c.id
+      LEFT JOIN instagram_conversations ic ON ic.conversation_id = c.id
       WHERE m.conversation_id = ? AND m.external_id = ?
     `).bind(conversationId, localId).first<OutboundMessage & { attachmentJson: string | null }>().then((message) => message ? ({ ...message, attachment: message.attachmentJson ? JSON.parse(message.attachmentJson) as MessageAttachment : null }) : null);
   }
@@ -636,6 +926,523 @@ export class OpenChatStore {
     return row ? { ...row, canReply: Boolean(row.canReply), enabled: Boolean(row.enabled) } : null;
   }
 
+  async getMessageAttachmentContext(messageId: number) {
+    await this.ready();
+    const row = await this.db.prepare(`
+      SELECT m.attachment_json AS attachmentJson, c.channel
+      FROM messages m JOIN conversations c ON c.id = m.conversation_id
+      WHERE m.id = ?
+    `).bind(messageId).first<{ attachmentJson: string | null; channel: ConversationChannel }>();
+    return row?.attachmentJson ? { channel: row.channel, attachment: JSON.parse(row.attachmentJson) as MessageAttachment } : null;
+  }
+
+  async updateContactProfile(channel: ConversationChannel, externalId: string, displayName: string, username?: string) {
+    await this.ready();
+    await this.db.prepare(`
+      UPDATE contacts SET display_name = ?, username = COALESCE(?, username), updated_at = ?
+      WHERE channel = ? AND external_id = ?
+    `).bind(displayName.slice(0, 200), username?.slice(0, 200) ?? null, Date.now(), channel, externalId).run();
+  }
+
+  async saveInstagramAccount(account: Omit<InstagramAccount, "id" | "connectedAt" | "updatedAt" | "lastError"> & { id?: number; lastError?: string | null }) {
+    await this.ready();
+    const now = Date.now();
+    await this.db.prepare(`
+      INSERT INTO instagram_accounts(
+        instagram_user_id, app_scoped_user_id, username, display_name, profile_picture_url,
+        encrypted_access_token, token_expires_at, scopes_json, webhook_subscribed,
+        connected_at, updated_at, last_error
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(instagram_user_id) DO UPDATE SET
+        app_scoped_user_id = excluded.app_scoped_user_id,
+        username = excluded.username,
+        display_name = excluded.display_name,
+        profile_picture_url = excluded.profile_picture_url,
+        encrypted_access_token = excluded.encrypted_access_token,
+        token_expires_at = excluded.token_expires_at,
+        scopes_json = excluded.scopes_json,
+        webhook_subscribed = excluded.webhook_subscribed,
+        updated_at = excluded.updated_at,
+        last_error = excluded.last_error
+    `).bind(
+      account.instagramUserId,
+      account.appScopedUserId,
+      account.username,
+      account.displayName,
+      account.profilePictureUrl,
+      account.encryptedAccessToken,
+      account.tokenExpiresAt,
+      JSON.stringify(account.scopes),
+      account.webhookSubscribed ? 1 : 0,
+      now,
+      now,
+      account.lastError ?? null,
+    ).run();
+    const saved = await this.getInstagramAccountByUserId(account.instagramUserId);
+    if (!saved) throw new Error("Instagram account persistence failed");
+    return saved;
+  }
+
+  async listInstagramAccounts(): Promise<InstagramAccount[]> {
+    await this.ready();
+    const { results } = await this.db.prepare(`
+      SELECT id, instagram_user_id AS instagramUserId, app_scoped_user_id AS appScopedUserId,
+        username, display_name AS displayName, profile_picture_url AS profilePictureUrl,
+        encrypted_access_token AS encryptedAccessToken, token_expires_at AS tokenExpiresAt,
+        scopes_json AS scopesJson, webhook_subscribed AS webhookSubscribed,
+        connected_at AS connectedAt, updated_at AS updatedAt, last_error AS lastError
+      FROM instagram_accounts ORDER BY updated_at DESC
+    `).all<InstagramAccount & { scopesJson: string; webhookSubscribed: boolean | number }>();
+    return results.map(({ scopesJson, webhookSubscribed, ...account }) => ({
+      ...account,
+      scopes: JSON.parse(scopesJson) as string[],
+      webhookSubscribed: Boolean(webhookSubscribed),
+    }));
+  }
+
+  async getInstagramAccount(id: number): Promise<InstagramAccount | null> {
+    const accounts = await this.listInstagramAccounts();
+    return accounts.find((account) => account.id === id) ?? null;
+  }
+
+  async getInstagramAccountByUserId(instagramUserId: string): Promise<InstagramAccount | null> {
+    const accounts = await this.listInstagramAccounts();
+    return accounts.find((account) => account.instagramUserId === instagramUserId) ?? null;
+  }
+
+  async updateInstagramAccountHealth(id: number, webhookSubscribed: boolean, lastError: string | null) {
+    await this.ready();
+    await this.db.prepare("UPDATE instagram_accounts SET webhook_subscribed = ?, last_error = ?, updated_at = ? WHERE id = ?")
+      .bind(webhookSubscribed ? 1 : 0, lastError?.slice(0, 1000) ?? null, Date.now(), id).run();
+  }
+
+  async updateInstagramToken(id: number, encryptedAccessToken: string, tokenExpiresAt: number) {
+    await this.ready();
+    await this.db.prepare(`
+      UPDATE instagram_accounts SET encrypted_access_token = ?, token_expires_at = ?, last_error = NULL, updated_at = ?
+      WHERE id = ?
+    `).bind(encryptedAccessToken, tokenExpiresAt, Date.now(), id).run();
+  }
+
+  async setInstagramAccountError(id: number, error: string) {
+    await this.ready();
+    await this.db.prepare("UPDATE instagram_accounts SET last_error = ?, updated_at = ? WHERE id = ?")
+      .bind(error.slice(0, 1000), Date.now(), id).run();
+  }
+
+  async deleteInstagramAccount(id: number) {
+    await this.ready();
+    const result = await this.db.prepare("DELETE FROM instagram_accounts WHERE id = ?").bind(id).run();
+    return rowChanges(result) > 0;
+  }
+
+  async getInstagramConversationContext(conversationId: number): Promise<InstagramConversationContext | null> {
+    await this.ready();
+    return this.db.prepare(`
+      SELECT ic.instagram_account_id AS instagramAccountId, ia.instagram_user_id AS instagramUserId,
+        ic.recipient_igsid AS recipientIgsid, ic.thread_id AS threadId,
+        ic.last_inbound_at AS lastInboundAt, ic.messaging_window_until AS messagingWindowUntil
+      FROM instagram_conversations ic
+      JOIN instagram_accounts ia ON ia.id = ic.instagram_account_id
+      WHERE ic.conversation_id = ?
+    `).bind(conversationId).first<InstagramConversationContext>();
+  }
+
+  async createOauthState(provider: "instagram", ttlMs = 10 * 60_000) {
+    await this.ready();
+    const state = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(state));
+    const stateHash = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const now = Date.now();
+    await this.db.batch([
+      this.db.prepare("DELETE FROM oauth_states WHERE expires_at <= ?").bind(now),
+      this.db.prepare("INSERT INTO oauth_states(state_hash, provider, expires_at, created_at) VALUES(?, ?, ?, ?)").bind(stateHash, provider, now + ttlMs, now),
+    ]);
+    return state;
+  }
+
+  async consumeOauthState(provider: "instagram", state: string) {
+    await this.ready();
+    const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(state));
+    const stateHash = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const consumed = await this.db.prepare("DELETE FROM oauth_states WHERE state_hash = ? AND provider = ? AND expires_at > ? RETURNING state_hash AS stateHash")
+      .bind(stateHash, provider, Date.now()).first<{ stateHash: string }>();
+    return Boolean(consumed);
+  }
+
+  async listInstagramAutomations(instagramAccountId?: number): Promise<InstagramAutomation[]> {
+    await this.ready();
+    const where = instagramAccountId ? "WHERE a.instagram_account_id = ?" : "";
+    const statement = this.db.prepare(`
+      SELECT a.id, a.instagram_account_id AS instagramAccountId, ia.username AS accountUsername,
+        a.name, a.trigger_type AS triggerType, a.post_id AS postId,
+        a.match_any_post AS matchAnyPost, a.match_any_text AS matchAnyText,
+        a.keywords_json AS keywordsJson, a.whole_word_match AS wholeWordMatch,
+        a.private_reply_message AS privateReplyMessage,
+        a.opening_dm_enabled AS openingDmEnabled, a.opening_dm_message AS openingDmMessage,
+        a.opening_dm_button_label AS openingDmButtonLabel, a.link_button_label AS linkButtonLabel,
+        a.require_follow AS requireFollow, a.follow_prompt_message AS followPromptMessage,
+        a.follow_prompt_button_label AS followPromptButtonLabel,
+        a.follow_up_enabled AS followUpEnabled, a.follow_up_message AS followUpMessage,
+        a.follow_up_delay_minutes AS followUpDelayMinutes, a.pending_next_reel AS pendingNextReel,
+        a.public_reply_enabled AS publicReplyEnabled, a.public_reply_message AS publicReplyMessage,
+        a.active, a.created_at AS createdAt, a.updated_at AS updatedAt
+      FROM instagram_automations a JOIN instagram_accounts ia ON ia.id = a.instagram_account_id
+      ${where} ORDER BY a.updated_at DESC
+    `);
+    const { results } = await (instagramAccountId ? statement.bind(instagramAccountId) : statement)
+      .all<InstagramAutomation & { keywordsJson: string; matchAnyPost: number | boolean; matchAnyText: number | boolean; wholeWordMatch: number | boolean; openingDmEnabled: number | boolean; requireFollow: number | boolean; followUpEnabled: number | boolean; pendingNextReel: number | boolean; publicReplyEnabled: number | boolean; active: number | boolean }>();
+    const { results: links } = await this.db.prepare(`
+      SELECT id, automation_id AS automationId, slug, label, destination_url AS destinationUrl, position
+      FROM instagram_tracked_links WHERE active = 1 ORDER BY automation_id, position
+    `).all<InstagramTrackedLink>();
+    return results.map(({ keywordsJson, ...automation }) => ({
+      ...automation,
+      keywords: JSON.parse(keywordsJson) as string[],
+      matchAnyPost: Boolean(automation.matchAnyPost),
+      matchAnyText: Boolean(automation.matchAnyText),
+      wholeWordMatch: Boolean(automation.wholeWordMatch),
+      openingDmEnabled: Boolean(automation.openingDmEnabled),
+      requireFollow: Boolean(automation.requireFollow),
+      followUpEnabled: Boolean(automation.followUpEnabled),
+      pendingNextReel: Boolean(automation.pendingNextReel),
+      publicReplyEnabled: Boolean(automation.publicReplyEnabled),
+      active: Boolean(automation.active),
+      trackedLinks: links.filter((link) => link.automationId === automation.id),
+    }));
+  }
+
+  async createInstagramAutomation(input: InstagramAutomationInput) {
+    await this.ready();
+    const now = Date.now();
+    const result = await this.db.prepare(`
+      INSERT INTO instagram_automations(
+        instagram_account_id, name, trigger_type, post_id, match_any_post, match_any_text,
+        keywords_json, whole_word_match, private_reply_message,
+        opening_dm_enabled, opening_dm_message, opening_dm_button_label, link_button_label,
+        require_follow, follow_prompt_message, follow_prompt_button_label,
+        follow_up_enabled, follow_up_message, follow_up_delay_minutes, pending_next_reel,
+        public_reply_enabled, public_reply_message, active, created_at, updated_at
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      input.instagramAccountId, input.name.trim(), input.triggerType ?? "comment", input.postId?.trim() || null,
+      input.matchAnyPost ? 1 : 0, input.matchAnyText ? 1 : 0,
+      JSON.stringify(input.keywords ?? []), input.wholeWordMatch === false ? 0 : 1,
+      input.privateReplyMessage.trim(),
+      input.openingDmEnabled ? 1 : 0, input.openingDmMessage?.trim() || null, input.openingDmButtonLabel?.trim() || null, input.linkButtonLabel?.trim() || null,
+      input.requireFollow ? 1 : 0, input.followPromptMessage?.trim() || null, input.followPromptButtonLabel?.trim() || null,
+      input.followUpEnabled ? 1 : 0, input.followUpMessage?.trim() || null, Math.max(0, Math.min(1440, input.followUpDelayMinutes ?? 0)), input.pendingNextReel ? 1 : 0,
+      input.publicReplyEnabled ? 1 : 0,
+      input.publicReplyMessage?.trim() || null, input.active === false ? 0 : 1, now, now,
+    ).run();
+    const automationId = Number(result.meta.last_row_id);
+    const links = (input.trackedLinks ?? []).slice(0, 3);
+    if (links.length) await this.db.batch(links.map((link, position) => this.db.prepare(`
+      INSERT INTO instagram_tracked_links(automation_id, slug, label, destination_url, position, created_at, updated_at)
+      VALUES(?, ?, ?, ?, ?, ?, ?)
+    `).bind(automationId, randomSlug(), link.label.trim(), link.destinationUrl.trim(), position, now, now)));
+    return automationId;
+  }
+
+  async updateInstagramAutomation(id: number, input: InstagramAutomationInput) {
+    await this.ready();
+    const exists = await this.db.prepare("SELECT id FROM instagram_automations WHERE id = ?").bind(id).first<{ id: number }>();
+    if (!exists) return false;
+    const now = Date.now();
+    const links = (input.trackedLinks ?? []).slice(0, 3);
+    const { results: existingLinks } = await this.db.prepare(`
+      SELECT id FROM instagram_tracked_links WHERE automation_id = ?
+      ORDER BY active DESC, position ASC, id ASC
+    `).bind(id).all<{ id: number }>();
+    const statements = [
+      this.db.prepare(`
+        UPDATE instagram_automations SET
+          instagram_account_id = ?, name = ?, trigger_type = ?, post_id = ?,
+          match_any_post = ?, match_any_text = ?, keywords_json = ?, whole_word_match = ?,
+          private_reply_message = ?, opening_dm_enabled = ?, opening_dm_message = ?,
+          opening_dm_button_label = ?, link_button_label = ?, require_follow = ?,
+          follow_prompt_message = ?, follow_prompt_button_label = ?, follow_up_enabled = ?,
+          follow_up_message = ?, follow_up_delay_minutes = ?, pending_next_reel = ?,
+          public_reply_enabled = ?, public_reply_message = ?, active = ?, updated_at = ?
+        WHERE id = ?
+      `).bind(
+        input.instagramAccountId, input.name.trim(), input.triggerType ?? "comment", input.postId?.trim() || null,
+        input.matchAnyPost ? 1 : 0, input.matchAnyText ? 1 : 0, JSON.stringify(input.keywords ?? []), input.wholeWordMatch === false ? 0 : 1,
+        input.privateReplyMessage.trim(), input.openingDmEnabled ? 1 : 0, input.openingDmMessage?.trim() || null,
+        input.openingDmButtonLabel?.trim() || null, input.linkButtonLabel?.trim() || null, input.requireFollow ? 1 : 0,
+        input.followPromptMessage?.trim() || null, input.followPromptButtonLabel?.trim() || null, input.followUpEnabled ? 1 : 0,
+        input.followUpMessage?.trim() || null, Math.max(0, Math.min(1440, input.followUpDelayMinutes ?? 0)), input.pendingNextReel ? 1 : 0,
+        input.publicReplyEnabled ? 1 : 0, input.publicReplyMessage?.trim() || null, input.active === false ? 0 : 1, now, id,
+      ),
+      this.db.prepare("UPDATE instagram_tracked_links SET active = 0, position = -id, updated_at = ? WHERE automation_id = ?").bind(now, id),
+      ...links.map((link, position) => existingLinks[position]
+        ? this.db.prepare(`UPDATE instagram_tracked_links SET label = ?, destination_url = ?, position = ?, active = 1, updated_at = ? WHERE id = ?`)
+          .bind(link.label.trim(), link.destinationUrl.trim(), position, now, existingLinks[position].id)
+        : this.db.prepare(`
+          INSERT INTO instagram_tracked_links(automation_id, slug, label, destination_url, position, active, created_at, updated_at)
+          VALUES(?, ?, ?, ?, ?, 1, ?, ?)
+        `).bind(id, randomSlug(), link.label.trim(), link.destinationUrl.trim(), position, now, now)),
+    ];
+    await this.db.batch(statements);
+    return true;
+  }
+
+  async setInstagramAutomationActive(id: number, active: boolean) {
+    await this.ready();
+    const result = await this.db.prepare("UPDATE instagram_automations SET active = ?, updated_at = ? WHERE id = ?")
+      .bind(active ? 1 : 0, Date.now(), id).run();
+    return rowChanges(result) > 0;
+  }
+
+  async deleteInstagramAutomation(id: number) {
+    await this.ready();
+    const result = await this.db.prepare("DELETE FROM instagram_automations WHERE id = ?").bind(id).run();
+    return rowChanges(result) > 0;
+  }
+
+  async activateNextReelAutomation(automationId: number, mediaId: string) {
+    await this.ready();
+    const result = await this.db.prepare(`
+      UPDATE instagram_automations SET post_id = ?, pending_next_reel = 0, updated_at = ?
+      WHERE id = ? AND pending_next_reel = 1 AND active = 1
+    `).bind(mediaId, Date.now(), automationId).run();
+    return rowChanges(result) > 0;
+  }
+
+  async markInstagramCommentSeen(instagramAccountId: number, commentId: string, source: "webhook" | "polling") {
+    await this.ready();
+    const result = await this.db.prepare(`
+      INSERT INTO instagram_processed_comments(comment_id, instagram_account_id, source, seen_at)
+      VALUES(?, ?, ?, ?) ON CONFLICT(comment_id) DO NOTHING
+    `).bind(commentId, instagramAccountId, source, Date.now()).run();
+    return rowChanges(result) > 0;
+  }
+
+  async enqueueInstagramAutomationRun(input: {
+    automationId: number;
+    instagramAccountId: number;
+    triggerType: "comment" | "dm";
+    triggerExternalId: string;
+    subjectIgsid: string;
+    subjectUsername?: string;
+    inputText: string;
+    matchedKeyword?: string | null;
+    interactionAt?: number | null;
+  }) {
+    await this.ready();
+    const now = Date.now();
+    const result = await this.db.prepare(`
+      INSERT INTO instagram_automation_runs(
+        automation_id, instagram_account_id, trigger_type, trigger_external_id,
+        subject_igsid, subject_username, input_text, matched_keyword,
+        status, attempts, scheduled_at, last_interaction_at, created_at, updated_at
+      ) VALUES(?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?, ?, ?)
+      ON CONFLICT(automation_id, trigger_type, trigger_external_id) DO NOTHING
+    `).bind(
+      input.automationId, input.instagramAccountId, input.triggerType, input.triggerExternalId,
+      input.subjectIgsid, input.subjectUsername ?? null, input.inputText, input.matchedKeyword ?? null,
+      now, input.interactionAt ?? null, now, now,
+    ).run();
+    return rowChanges(result) > 0;
+  }
+
+  async claimInstagramAutomationRun(): Promise<InstagramAutomationRunClaim | null> {
+    await this.ready();
+    const now = Date.now();
+    const leaseToken = crypto.randomUUID();
+    const claimed = await this.db.prepare(`
+      UPDATE instagram_automation_runs SET status = 'processing', lease_token = ?, lease_until = ?, attempts = attempts + 1, last_error = NULL, updated_at = ?
+      WHERE id = (
+        SELECT id FROM instagram_automation_runs
+        WHERE (scheduled_at <= ? AND status = 'pending') OR
+          (status = 'sent' AND follow_up_scheduled_at IS NOT NULL AND follow_up_scheduled_at <= ? AND follow_up_sent_at IS NULL)
+        ORDER BY scheduled_at ASC, id ASC LIMIT 1
+      ) RETURNING id
+    `).bind(leaseToken, now + 60_000, now, now, now).first<{ id: number }>();
+    if (!claimed) return null;
+    const run = await this.db.prepare(`
+      SELECT r.id, r.automation_id AS automationId, r.instagram_account_id AS instagramAccountId,
+        ia.instagram_user_id AS instagramUserId, ia.encrypted_access_token AS encryptedAccessToken,
+        r.trigger_type AS triggerType, r.trigger_external_id AS triggerExternalId,
+        r.subject_igsid AS subjectIgsid, r.subject_username AS subjectUsername,
+        r.attempts,
+        a.private_reply_message AS privateReplyMessage,
+        a.opening_dm_enabled AS openingDmEnabled, a.opening_dm_message AS openingDmMessage,
+        a.opening_dm_button_label AS openingDmButtonLabel, a.link_button_label AS linkButtonLabel,
+        a.require_follow AS requireFollow, a.follow_prompt_message AS followPromptMessage,
+        a.follow_prompt_button_label AS followPromptButtonLabel,
+        a.follow_up_enabled AS followUpEnabled, a.follow_up_message AS followUpMessage,
+        a.follow_up_delay_minutes AS followUpDelayMinutes,
+        a.public_reply_enabled AS publicReplyEnabled, a.public_reply_message AS publicReplyMessage,
+        r.private_reply_sent_at AS privateReplySentAt, r.public_reply_sent_at AS publicReplySentAt,
+        r.reveal_sent_at AS revealSentAt, r.follow_up_scheduled_at AS followUpScheduledAt,
+        r.follow_up_sent_at AS followUpSentAt, r.last_interaction_at AS lastInteractionAt
+      FROM instagram_automation_runs r
+      JOIN instagram_automations a ON a.id = r.automation_id
+      JOIN instagram_accounts ia ON ia.id = r.instagram_account_id
+      WHERE r.id = ? AND r.lease_token = ?
+    `).bind(claimed.id, leaseToken).first<Omit<InstagramAutomationRunClaim, "leaseToken" | "trackedLinks"> & { openingDmEnabled: number | boolean; requireFollow: number | boolean; followUpEnabled: number | boolean; publicReplyEnabled: number | boolean }>();
+    if (!run) return null;
+    const { results: trackedLinks } = await this.db.prepare(`
+      SELECT id, automation_id AS automationId, slug, label, destination_url AS destinationUrl, position
+      FROM instagram_tracked_links WHERE automation_id = ? AND active = 1 ORDER BY position
+    `).bind(run.automationId).all<InstagramTrackedLink>();
+    return {
+      ...run,
+      openingDmEnabled: Boolean(run.openingDmEnabled),
+      requireFollow: Boolean(run.requireFollow),
+      followUpEnabled: Boolean(run.followUpEnabled),
+      publicReplyEnabled: Boolean(run.publicReplyEnabled),
+      trackedLinks,
+      leaseToken,
+    };
+  }
+
+  async markInstagramAutomationActionSent(run: InstagramAutomationRunClaim, action: "private" | "public") {
+    await this.ready();
+    const column = action === "private" ? "private_reply_sent_at" : "public_reply_sent_at";
+    await this.db.prepare(`UPDATE instagram_automation_runs SET ${column} = ?, updated_at = ? WHERE id = ? AND lease_token = ?`)
+      .bind(Date.now(), Date.now(), run.id, run.leaseToken).run();
+  }
+
+  async markInstagramAutomationRevealSent(run: InstagramAutomationRunClaim, interactionAt?: number) {
+    await this.ready();
+    const now = Date.now();
+    const followUpAt = run.followUpEnabled && run.followUpMessage && interactionAt
+      ? now + Math.max(0, run.followUpDelayMinutes) * 60_000
+      : null;
+    await this.db.prepare(`
+      UPDATE instagram_automation_runs SET reveal_sent_at = ?, follow_up_scheduled_at = ?,
+        last_interaction_at = COALESCE(?, last_interaction_at), updated_at = ?
+      WHERE id = ? AND lease_token = ?
+    `).bind(now, followUpAt, interactionAt ?? null, now, run.id, run.leaseToken).run();
+  }
+
+  async markInstagramAutomationFollowUpSent(run: InstagramAutomationRunClaim) {
+    await this.ready();
+    const now = Date.now();
+    await this.db.prepare(`UPDATE instagram_automation_runs SET follow_up_sent_at = ?, updated_at = ? WHERE id = ? AND lease_token = ?`)
+      .bind(now, now, run.id, run.leaseToken).run();
+  }
+
+  async triggerInstagramAutomationPostback(runId: number, subjectIgsid: string, interactionAt: number) {
+    await this.ready();
+    const now = Date.now();
+    const result = await this.db.prepare(`
+      UPDATE instagram_automation_runs SET status = 'pending', scheduled_at = ?, last_interaction_at = ?,
+        lease_token = NULL, lease_until = NULL, last_error = NULL, updated_at = ?
+      WHERE id = ? AND subject_igsid = ? AND status IN ('sent', 'failed')
+        AND private_reply_sent_at IS NOT NULL AND reveal_sent_at IS NULL
+    `).bind(now, interactionAt, now, runId, subjectIgsid).run();
+    const triggered = rowChanges(result) > 0;
+    if (triggered) await this.db.prepare(`
+      UPDATE instagram_conversations SET last_inbound_at = MAX(last_inbound_at, ?),
+        messaging_window_until = MAX(messaging_window_until, ?), updated_at = ?
+      WHERE recipient_igsid = ? AND instagram_account_id = (
+        SELECT instagram_account_id FROM instagram_automation_runs WHERE id = ?
+      )
+    `).bind(interactionAt, interactionAt + 24 * 60 * 60_000, now, subjectIgsid, runId).run();
+    return triggered;
+  }
+
+  async finishInstagramAutomationRun(run: InstagramAutomationRunClaim, error?: string) {
+    await this.ready();
+    const now = Date.now();
+    await this.db.prepare(`
+      UPDATE instagram_automation_runs SET status = ?, lease_token = NULL, lease_until = NULL, last_error = ?, updated_at = ?
+      WHERE id = ? AND lease_token = ?
+    `).bind(error ? "failed" : "sent", error?.slice(0, 1000) ?? null, now, run.id, run.leaseToken).run();
+  }
+
+  async rescheduleInstagramAutomationRun(run: InstagramAutomationRunClaim, delayMs: number, error: string) {
+    await this.ready();
+    const now = Date.now();
+    await this.db.prepare(`
+      UPDATE instagram_automation_runs SET status = 'pending', lease_token = NULL, lease_until = NULL,
+        scheduled_at = ?, last_error = ?, updated_at = ? WHERE id = ? AND lease_token = ?
+    `).bind(now + delayMs, error.slice(0, 1000), now, run.id, run.leaseToken).run();
+  }
+
+  async claimInstagramSendBudget(instagramAccountId: number, maximumPerHour = 700) {
+    await this.ready();
+    const now = Date.now();
+    const windowStart = now - 60 * 60_000;
+    const claimed = await this.db.prepare(`
+      INSERT INTO instagram_rate_limits(instagram_account_id, window_started_at, sends)
+      VALUES(?, ?, 1)
+      ON CONFLICT(instagram_account_id) DO UPDATE SET
+        window_started_at = CASE WHEN instagram_rate_limits.window_started_at <= ? THEN excluded.window_started_at ELSE instagram_rate_limits.window_started_at END,
+        sends = CASE WHEN instagram_rate_limits.window_started_at <= ? THEN 1 ELSE instagram_rate_limits.sends + 1 END
+      WHERE instagram_rate_limits.window_started_at <= ? OR instagram_rate_limits.sends < ?
+      RETURNING sends
+    `).bind(instagramAccountId, now, windowStart, windowStart, windowStart, maximumPerHour).first<{ sends: number }>();
+    return Boolean(claimed);
+  }
+
+  async listInstagramAutomationRuns(limit = 100) {
+    await this.ready();
+    const { results } = await this.db.prepare(`
+      SELECT r.id, r.automation_id AS automationId, a.name AS automationName,
+        r.trigger_type AS triggerType, r.trigger_external_id AS triggerExternalId,
+        r.subject_username AS subjectUsername, r.input_text AS inputText,
+        r.matched_keyword AS matchedKeyword, r.status, r.attempts,
+        r.private_reply_sent_at AS privateReplySentAt, r.public_reply_sent_at AS publicReplySentAt,
+        r.last_error AS lastError, r.created_at AS createdAt, r.updated_at AS updatedAt
+      FROM instagram_automation_runs r JOIN instagram_automations a ON a.id = r.automation_id
+      ORDER BY r.created_at DESC LIMIT ?
+    `).bind(limit).all();
+    return results;
+  }
+
+  async getInstagramTrackedLink(slug: string) {
+    await this.ready();
+    return this.db.prepare(`
+      SELECT l.id, l.automation_id AS automationId, a.instagram_account_id AS instagramAccountId,
+        l.destination_url AS destinationUrl
+      FROM instagram_tracked_links l JOIN instagram_automations a ON a.id = l.automation_id
+      WHERE l.slug = ? AND l.active = 1
+    `).bind(slug).first<{ id: number; automationId: number; instagramAccountId: number; destinationUrl: string }>();
+  }
+
+  async recordInstagramLinkClick(link: { id: number; automationId: number; instagramAccountId: number }, input: { ipHash?: string; userAgent?: string; referrer?: string }) {
+    await this.ready();
+    await this.db.prepare(`
+      INSERT INTO instagram_link_clicks(tracked_link_id, automation_id, instagram_account_id, ip_hash, user_agent, referrer, created_at)
+      VALUES(?, ?, ?, ?, ?, ?, ?)
+    `).bind(link.id, link.automationId, link.instagramAccountId, input.ipHash?.slice(0, 128) || null, input.userAgent?.slice(0, 500) || null, input.referrer?.slice(0, 1000) || null, Date.now()).run();
+  }
+
+  async listInstagramAutomationAnalytics() {
+    await this.ready();
+    const { results } = await this.db.prepare(`
+      SELECT a.id AS automationId, a.name, ia.username AS accountUsername,
+        COUNT(DISTINCT r.id) AS runs,
+        COUNT(DISTINCT CASE WHEN r.private_reply_sent_at IS NOT NULL THEN r.id END) AS privateReplies,
+        COUNT(DISTINCT CASE WHEN r.reveal_sent_at IS NOT NULL THEN r.id END) AS reveals,
+        COUNT(DISTINCT CASE WHEN r.public_reply_sent_at IS NOT NULL THEN r.id END) AS publicReplies,
+        COUNT(DISTINCT CASE WHEN r.follow_up_sent_at IS NOT NULL THEN r.id END) AS followUps,
+        COUNT(DISTINCT CASE WHEN r.status = 'failed' THEN r.id END) AS failures,
+        COUNT(DISTINCT c.id) AS clicks
+      FROM instagram_automations a
+      JOIN instagram_accounts ia ON ia.id = a.instagram_account_id
+      LEFT JOIN instagram_automation_runs r ON r.automation_id = a.id
+      LEFT JOIN instagram_link_clicks c ON c.automation_id = a.id
+      GROUP BY a.id ORDER BY a.updated_at DESC
+    `).all();
+    return results;
+  }
+
+  async retryInstagramAutomationRun(runId: number) {
+    await this.ready();
+    const now = Date.now();
+    const result = await this.db.prepare(`
+      UPDATE instagram_automation_runs SET status = 'pending', lease_token = NULL, lease_until = NULL,
+        scheduled_at = ?, last_error = NULL, updated_at = ?
+      WHERE id = ? AND status = 'failed'
+    `).bind(now, now, runId).run();
+    return rowChanges(result) > 0;
+  }
+
   async getChannelEventForRetry(eventId: number) {
     await this.ready();
     return this.db.prepare(`
@@ -653,10 +1460,15 @@ export class OpenChatStore {
     return rowChanges(result) > 0;
   }
 
+  async discardPendingAiJob(conversationId: number) {
+    await this.ready();
+    await this.db.prepare("DELETE FROM ai_jobs WHERE conversation_id = ? AND status = 'pending'").bind(conversationId).run();
+  }
+
   async listOperations(): Promise<OperationsSnapshot> {
     await this.ready();
     await reconcileStaleWork(this.db);
-    const [eventsResult, jobsResult, messagesResult, countsResult] = await Promise.all([
+    const [eventsResult, jobsResult, messagesResult, automationRunsResult, countsResult] = await Promise.all([
       this.db.prepare(`
         SELECT id, provider, external_id AS externalId, status, attempts, last_error AS lastError, received_at AS receivedAt
         FROM channel_events WHERE status IN ('failed', 'processing') ORDER BY received_at DESC LIMIT 50
@@ -678,18 +1490,31 @@ export class OpenChatStore {
         WHERE m.delivery_status = 'failed' ORDER BY m.created_at DESC LIMIT 50
       `).all<OperationsSnapshot["failedMessages"][number]>(),
       this.db.prepare(`
+        SELECT r.id, a.name AS automationName, ia.username AS accountUsername,
+          r.trigger_type AS triggerType, r.subject_username AS subjectUsername, r.status, r.attempts,
+          r.private_reply_sent_at AS privateReplySentAt, r.public_reply_sent_at AS publicReplySentAt,
+          r.last_error AS lastError, r.updated_at AS updatedAt
+        FROM instagram_automation_runs r
+        JOIN instagram_automations a ON a.id = r.automation_id
+        JOIN instagram_accounts ia ON ia.id = r.instagram_account_id
+        WHERE r.status IN ('pending', 'processing', 'failed') ORDER BY r.updated_at DESC LIMIT 50
+      `).all<OperationsSnapshot["automationRuns"][number]>(),
+      this.db.prepare(`
         SELECT
           (SELECT COUNT(*) FROM channel_events WHERE status = 'failed') AS failedEvents,
           (SELECT COUNT(*) FROM ai_jobs WHERE status = 'failed') AS failedAiJobs,
           (SELECT COUNT(*) FROM ai_jobs WHERE status IN ('pending', 'processing')) AS pendingWork,
-          (SELECT COUNT(*) FROM messages WHERE delivery_status = 'failed') AS failedMessages
+          (SELECT COUNT(*) FROM messages WHERE delivery_status = 'failed') AS failedMessages,
+          (SELECT COUNT(*) FROM instagram_automation_runs WHERE status = 'failed') AS failedAutomations,
+          (SELECT COUNT(*) FROM instagram_automation_runs WHERE status IN ('pending', 'processing')) AS pendingAutomations
       `).first<OperationsSnapshot["counts"]>(),
     ]);
     return {
       events: eventsResult.results,
       aiJobs: jobsResult.results,
       failedMessages: messagesResult.results,
-      counts: countsResult ?? { failedEvents: 0, failedAiJobs: 0, pendingWork: 0, failedMessages: 0 },
+      automationRuns: automationRunsResult.results,
+      counts: countsResult ?? { failedEvents: 0, failedAiJobs: 0, pendingWork: 0, failedMessages: 0, failedAutomations: 0, pendingAutomations: 0 },
     };
   }
 

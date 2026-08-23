@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <h2>Installation data</h2>
         <p>Your installation stores the channel connections, conversations, messages, settings, and operational records needed to provide the features you configure. The installation operator controls that data and its retention.</p>
         <h2>Connected services</h2>
-        <p>Telegram and any AI provider you connect receive data according to the actions you enable and their own terms. Review those services and your legal obligations before processing customer conversations.</p>
+        <p>Meta/Instagram, Telegram, and any AI provider you connect receive data according to the actions you enable and their own terms. Review those services and your legal obligations before processing customer conversations.</p>
         <h2>Your choices</h2>
         <p>Requests to access, correct, export, or delete information must be directed to the operator of the OpenChat installation you used.</p>
         <h2>For operators</h2>
