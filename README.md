@@ -147,7 +147,8 @@ npx wrangler r2 bucket create openchat-media
 3. Deploy the application:
 
 ```bash
-npx @vinext/cloudflare deploy
+npm run build
+npx wrangler deploy --config dist/server/wrangler.json
 ```
 
 4. Using the generated `dist/server/wrangler.json`, add the dashboard password and session secret. The session secret also protects encrypted integration credentials:
